@@ -1,0 +1,22 @@
+services:
+  jitsi-bot:
+    build: .
+    container_name: jitsi-music-bot
+    restart: unless-stopped
+    env_file: .env
+    network_mode: host
+    environment:
+      TZ: Europe/Moscow
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 500M
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
