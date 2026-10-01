@@ -1,5 +1,5 @@
-const config = require('../config');
-const t = require('../config/i18n');
+const config = require('../../config');
+const t = require('../../config/i18n');
 
 class JitsiPlayerBridge {
     constructor(getPage) {
@@ -13,7 +13,9 @@ class JitsiPlayerBridge {
 
     sendChatMessage(text) {
         return this.eval(msg => {
-            try { window.APP?.store?.getState()?.['features/base/conference']?.conference?.sendTextMessage(msg); } catch {}
+            try {
+                window.APP?.store?.getState()?.['features/base/conference']?.conference?.sendTextMessage(msg);
+            } catch {}
         }, text);
     }
 
@@ -32,14 +34,12 @@ class JitsiPlayerBridge {
             const audio = window.botAudioElement;
             if (!audio) return;
 
-            // Сброс предыдущего стрима
             window.isManuallyStopped = true;
             audio.onended = audio.onerror = null;
             audio.pause();
             audio.removeAttribute('src');
             window.isManuallyStopped = false;
 
-            // Аппаратная регулировка громкости через GainNode
             if (window.botGainNode) {
                 window.botGainNode.gain.value = vol;
             }

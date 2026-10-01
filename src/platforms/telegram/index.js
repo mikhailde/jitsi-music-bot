@@ -1,8 +1,8 @@
 const { Bot } = require('grammy');
 const { SocksProxyAgent } = require('socks-proxy-agent');
-const config = require('../config');
-const t = require('../config/i18n');
-const log = require('../utils/logger');
+const config = require('../../config');
+const t = require('../../config/i18n');
+const log = require('../../utils/logger');
 const { startJitsiBot, leaveJitsiBot, getBotStatus } = require('../jitsi');
 
 function extractRoomName(input) {

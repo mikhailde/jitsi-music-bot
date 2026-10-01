@@ -1,6 +1,6 @@
-const config = require('../config');
-const { getTrackInfo } = require('../audio');
-const log = require('../utils/logger');
+const config = require('../../config');
+const { getTrackInfo } = require('../../audio');
+const log = require('../../utils/logger');
 
 async function fetchNextRadioTrack({ state, playNextInQueue, track }) {
     if (!state.isRadioMode || state.isFetchingRadio || !track?.url) return;

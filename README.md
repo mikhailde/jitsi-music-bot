@@ -90,9 +90,9 @@ All parameters are **mandatory** (strict fail-fast validation):
 | | `HISTORY_LIMIT` | Track history capacity | `5` |
 | | `QUEUE_PAGE_SIZE` | Tracks displayed per `/queue` call | `5` |
 | | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `5` |
-| **Timeouts** | `AFK_TIMEOUT_MINUTES` | Leave empty room after N minutes | `5` |
+| **Timeouts** | `AFK_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
 | | `AFK_CHECK_INTERVAL_SEC` | Room participant poll interval in seconds | `15` |
-| | `SHUTDOWN_TIMEOUT_MS`| Graceful shutdown timeout in milliseconds | `3000` |
+| | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds | `3` |
 | **Browser** | `HEADLESS_MODE` | Run Playwright Chromium in headless mode | `true` |
 
 ---
@@ -101,19 +101,28 @@ All parameters are **mandatory** (strict fail-fast validation):
 
 ```text
 src/
-├── audio/            # Native node:http streamer & yt-dlp/ffmpeg pipeline
-├── config/           # Strict environment validator & i18n dictionary
-├── jitsi/            # Playwright browser manager, WebAudio bridge, watchdog & radio
-│   ├── browser.js    # Chromium lifecycle & WebAudio stream destination injection
-│   ├── commands.js   # Fast O(1) in-meeting chat command dispatcher
-│   ├── player.js     # Persistent HTML5 Audio & GainNode bridge
-│   ├── radio.js      # Smart YouTube Mix autoplay recommendations
-│   ├── watchdog.js   # Isolated server-side AFK room watchdog
-│   └── index.js      # Jitsi conference orchestrator & native hangup handler
-├── state/            # Pure PlayerState (Fisher-Yates shuffle, queue & loop)
-├── telegram/         # GrammY bot controller with admin authorization
-├── utils/            # ANSI color logger & time/progress bar formatters
-└── index.js          # Main entrypoint & graceful signal handlers (SIGINT/SIGTERM)
+├── audio/                # Audio subsystem
+│   ├── sources/          # Track resolution providers (YouTube/yt-dlp)
+│   ├── pipeline.js       # Low-level FFmpeg & yt-dlp streaming pipeline
+│   ├── server.js         # Native node:http audio streaming server
+│   └── index.js          # Audio subsystem facade
+├── config/               # Strict environment validator & i18n dictionary
+├── core/                 # Platform-agnostic domain logic
+│   ├── player/           # State machine, queue, history & volume
+│   ├── radio/            # Smart YouTube Mix autoplay recommendations
+│   └── index.js          # Core domain facade
+├── platforms/            # Platform adapters & client integrations
+│   ├── jitsi/            # Jitsi Meet client integration
+│   │   ├── browser.js    # Chromium lifecycle & WebAudio stream destination injection
+│   │   ├── bridge.js     # Persistent HTML5 Audio & GainNode DOM bridge
+│   │   ├── commands.js   # Fast O(1) in-meeting chat command dispatcher
+│   │   ├── session.js    # Isolated conference session instance
+│   │   ├── watchdog.js   # Server-side AFK room watchdog
+│   │   └── index.js      # Jitsi session manager & API facade
+│   ├── telegram/         # Telegram remote control bot (GrammY)
+│   └── index.js          # Unified platforms facade
+├── utils/                # Zero-dependency utilities (logger, formatters)
+└── index.js              # Application bootstrap & graceful shutdown coordinator
 ```
 
 ---

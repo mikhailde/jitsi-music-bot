@@ -1,4 +1,4 @@
-const config = require('../config');
+const config = require('../../config');
 
 class PlayerState {
     constructor() {
@@ -28,7 +28,9 @@ class PlayerState {
     }
 
     addToHistory(track) {
-        if (track) this.history = [track, ...this.history.slice(0, Math.max(0, config.historyLimit - 1))];
+        if (track) {
+            this.history = [track, ...this.history.slice(0, Math.max(0, config.historyLimit - 1))];
+        }
     }
 
     clearQueue() {

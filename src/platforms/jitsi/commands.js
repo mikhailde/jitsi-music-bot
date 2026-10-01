@@ -1,7 +1,7 @@
-const config = require('../config');
-const t = require('../config/i18n');
-const log = require('../utils/logger');
-const { formatTime, getProgressBar } = require('../utils/format');
+const config = require('../../config');
+const t = require('../../config/i18n');
+const log = require('../../utils/logger');
+const { formatTime, getProgressBar } = require('../../utils/format');
 
 const commands = {
     async '/play'({ cmd, query, state, player, getTrackInfo }) {

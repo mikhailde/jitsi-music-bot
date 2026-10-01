@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
-const config = require('../config');
-const log = require('../utils/logger');
+const config = require('../../config');
+const log = require('../../utils/logger');
 
 async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, onTrackError }) {
     const browser = await chromium.launch({
@@ -28,7 +28,6 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
     page.on('console', msg => { if (msg.type() === 'error') log.debug('BROWSER', msg.text()); });
     page.on('pageerror', err => log.error('BROWSER', err.message));
 
-    // Создаем единственный постоянный аудио-тракт на весь жизненный цикл
     await page.addInitScript(() => {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const dest = ctx.createMediaStreamDestination();

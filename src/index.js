@@ -1,7 +1,6 @@
 const config = require('./config');
 const { startAudioServer } = require('./audio');
-const { leaveJitsiBot } = require('./jitsi');
-const { createTelegramBot } = require('./telegram');
+const { leaveJitsiBot, createTelegramBot } = require('./platforms');
 const log = require('./utils/logger');
 
 process.on('unhandledRejection', (reason) => {
@@ -19,7 +18,7 @@ process.on('uncaughtException', (err) => {
     const bot = createTelegramBot();
     const shutdown = async () => {
         log.warn('SYSTEM', 'Service shutdown: leaving conference...');
-        const timer = setTimeout(() => process.exit(0), config.shutdownTimeoutMs);
+        const timer = setTimeout(() => process.exit(0), config.shutdownTimeoutSec * 1000);
         await leaveJitsiBot().catch(() => {});
         clearTimeout(timer);
         bot.stop();

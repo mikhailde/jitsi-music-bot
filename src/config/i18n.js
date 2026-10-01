@@ -2,7 +2,6 @@ const config = require('./index');
 const idx = config.lang === 'en' ? 1 : 0;
 
 const T = {
-    // === TELEGRAM ===
     tg_start: [
         'Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — состояние плеера и очередь\n/leave — отключить от звонка',
         'Jitsi Music Bot\n\nCommands:\n/join <room or URL> — connect to call\n/status — player state and queue\n/leave — disconnect from call'
@@ -35,7 +34,6 @@ const T = {
         'Access denied (your Telegram ID: {userId}).'
     ],
 
-    // === JITSI ПЛЕЕР ===
     j_search: ['Поиск: {query}...', 'Searching: {query}...'],
     j_not_found: ['Ничего не найдено.', 'Nothing found.'],
     j_playlist_loaded: ['Плейлист загружен: добавлено {count} треков', 'Playlist loaded: added {count} tracks'],
@@ -49,7 +47,6 @@ const T = {
     j_resume: ['▶ Воспроизведение.', '▶ Resumed.'],
     j_err_track: ['Ошибка воспроизведения трека, пропуск:\n{title}', 'Playback error, skipping:\n{title}'],
 
-    // === РЕЖИМЫ И НАСТРОЙКИ ===
     j_volume: ['Громкость: {vol}%', 'Volume: {vol}%'],
     j_volume_current: [
         'Громкость: {vol}% (изменить: /volume <0-100>)',
@@ -66,7 +63,6 @@ const T = {
         'Repeat mode: {status}\n\n/loop track — repeat current track\n/loop queue — repeat entire queue\n/loop off — disable repeat'
     ],
 
-    // === ОЧЕРЕДЬ И ИНФО ===
     j_np_silence: ['Сейчас ничего не играет.', 'Nothing is playing right now.'],
     j_np_playing: ['Сейчас играет: {title}\n{bar} {total}\n{url}', 'Now playing: {title}\n{bar} {total}\n{url}'],
     j_queue_empty: ['Очередь пуста.', 'Queue is empty.'],
@@ -83,18 +79,16 @@ const T = {
     j_remove: ['Удалено из очереди: {title}', 'Removed from queue: {title}'],
     j_remove_err: ['Трек не найден.', 'Track not found.'],
 
-    // === ПОМОЩЬ И ВЫХОД ===
     j_help: [
         'КОМАНДЫ БОТА:\n\nВоспроизведение:\n/play <запрос/URL> — включить трек\n/playnext <запрос/URL> — поставить следующим\n/pause, /resume — пауза / продолжить\n/skip, /replay — пропустить / сначала\n/stop — остановить и сбросить очередь\n\nОчередь и инфо:\n/np — текущий трек с прогресс-баром\n/queue — очередь треков\n/history — история сыгранных треков\n/shuffle — перемешать очередь\n/move <откуда> <куда> — сдвинуть трек\n/remove <номер> — удалить трек\n/clear — очистить очередь\n\nНастройки:\n/volume <0-100> — громкость\n/radio — режим бесконечного радио\n/loop <track|queue|off> — повтор трека или очереди\n\n/leave — покинуть звонок',
         'BOT COMMANDS:\n\nPlayback:\n/play <query/URL> — play track\n/playnext <query/URL> — play next\n/pause, /resume — pause / resume\n/skip, /replay — skip / replay\n/stop — stop and reset queue\n\nQueue & Info:\n/np — current track progress\n/queue — view queue\n/history — played tracks history\n/shuffle — shuffle queue\n/move <from> <to> — move track\n/remove <number> — remove track\n/clear — clear queue\n\nSettings:\n/volume <0-100> — volume level\n/radio — autoplay radio mode\n/loop <track|queue|off> — repeat mode\n\n/leave — leave meeting call'
     ],
     j_leave: ['Отключение от звонка...', 'Leaving the call...'],
     j_afk: [
-        'Комната пуста {min} мин. Бот отключен.',
-        'Room has been empty for {min} min. Bot disconnected.'
+        'Комната пуста {sec} сек. Бот отключен.',
+        'Room has been empty for {sec} sec. Bot disconnected.'
     ],
 
-    // === СЛОВАРНЫЕ ЗНАЧЕНИЯ ===
     word_on: ['ВКЛ', 'ON'],
     word_off: ['ВЫКЛ', 'OFF'],
     word_loop_1: ['Повтор трека', 'Track loop'],
