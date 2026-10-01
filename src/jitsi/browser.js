@@ -5,7 +5,6 @@ const log = require('../utils/logger');
 async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, onTrackError }) {
     const browser = await chromium.launch({
         headless: config.headless,
-        // Запрещаем Playwright аварийно убивать браузер на сигналах Docker
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
@@ -29,11 +28,25 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
     page.on('console', msg => { if (msg.type() === 'error') log.debug('BROWSER', msg.text()); });
     page.on('pageerror', err => log.error('BROWSER', err.message));
 
+    // Создаем единственный постоянный аудио-тракт на весь жизненный цикл
     await page.addInitScript(() => {
-        window.botAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-        window.botDestination = window.botAudioContext.createMediaStreamDestination();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const dest = ctx.createMediaStreamDestination();
+        const gain = ctx.createGain();
+
+        const audio = new Audio();
+        audio.crossOrigin = 'anonymous';
+        const source = ctx.createMediaElementSource(audio);
+        source.connect(gain);
+        gain.connect(dest);
+
+        window.botAudioContext = ctx;
+        window.botDestination = dest;
+        window.botGainNode = gain;
+        window.botAudioElement = audio;
+
         const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-        navigator.mediaDevices.getUserMedia = async (c) => (c?.audio ? window.botDestination.stream : orig(c));
+        navigator.mediaDevices.getUserMedia = async (c) => (c?.audio ? dest.stream : orig(c));
     });
 
     await Promise.all([

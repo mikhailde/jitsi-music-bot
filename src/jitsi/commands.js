@@ -34,7 +34,7 @@ const commands = {
 
     async '/skip'({ state, player }) {
         if (state.isPlaying) {
-            log.info('CMD', t('log_cmd_skip'));
+            log.info('CMD', '/skip');
             await player.sendChatMessage(t('j_skip'));
             await player.stopTrack();
             await player.handleTrackEnd(true);
@@ -43,7 +43,7 @@ const commands = {
 
     async '/replay'({ state, player }) {
         if (state.isPlaying && state.currentTrack) {
-            log.info('CMD', t('log_cmd_replay'));
+            log.info('CMD', '/replay');
             await player.sendChatMessage(t('j_replay'));
             await player.stopTrack();
             state.enqueue(state.currentTrack, true);
@@ -54,7 +54,7 @@ const commands = {
 
     async '/radio'({ state, player, fetchRadio }) {
         state.isRadioMode = !state.isRadioMode;
-        log.info('CMD', t('log_cmd_radio', { status: state.isRadioMode ? t('word_on') : t('word_off') }));
+        log.info('CMD', `/radio: ${state.isRadioMode ? 'ON' : 'OFF'}`);
         await player.sendChatMessage(state.isRadioMode ? t('j_radio_on') : t('j_radio_off'));
         if (state.shouldTriggerRadio()) fetchRadio(state.currentTrack);
     },
@@ -63,7 +63,7 @@ const commands = {
         const mode = args[1]?.toLowerCase();
         if (['track', 'queue', 'off'].includes(mode)) {
             state.loopMode = mode;
-            log.info('CMD', t('log_cmd_loop', { mode }));
+            log.info('CMD', `/loop: ${mode}`);
             await player.sendChatMessage(t(`j_loop_${mode}`));
             if (state.shouldTriggerRadio()) fetchRadio(state.currentTrack);
         } else {
@@ -74,7 +74,7 @@ const commands = {
 
     async '/shuffle'({ state, player }) {
         const ok = state.shuffleQueue();
-        log.info('CMD', t('log_cmd_shuffle', { status: ok ? 'ok' : 'err' }));
+        log.info('CMD', `/shuffle: ${ok ? 'ok' : 'insufficient tracks'}`);
         return player.sendChatMessage(t(ok ? 'j_shuffle_ok' : 'j_shuffle_err'));
     },
 
@@ -82,14 +82,14 @@ const commands = {
         if (args.length !== 3) return player.sendChatMessage(t('j_move_err_fmt'));
         const [from, to] = [parseInt(args[1], 10) - 1, parseInt(args[2], 10) - 1];
         if (state.moveTrack(from, to)) {
-            log.info('CMD', t('log_cmd_move', { from: from + 1, to: to + 1 }));
+            log.info('CMD', `/move: ${from + 1} -> ${to + 1}`);
             return player.sendChatMessage(t('j_move_ok', { pos: to + 1 }));
         }
         return player.sendChatMessage(t('j_move_err_idx', { count: state.queue.length }));
     },
 
     async '/clear'({ state, player, fetchRadio }) {
-        log.info('CMD', t('log_cmd_clear'));
+        log.info('CMD', '/clear');
         state.clearQueue();
         await player.sendChatMessage(t('j_clear'));
         if (state.shouldTriggerRadio()) fetchRadio(state.currentTrack);
@@ -100,7 +100,7 @@ const commands = {
         const idx = parseInt(args[1], 10) - 1;
         const removed = state.removeTrack(idx);
         if (removed) {
-            log.info('CMD', t('log_cmd_remove', { idx: idx + 1, title: removed.title }));
+            log.info('CMD', `/remove: #${idx + 1} "${removed.title}"`);
             await player.sendChatMessage(t('j_remove', { title: removed.title }));
             if (state.shouldTriggerRadio()) fetchRadio(state.currentTrack);
         } else {
@@ -109,19 +109,19 @@ const commands = {
     },
 
     async '/stop'({ state, player }) {
-        log.info('CMD', t('log_cmd_stop'));
+        log.info('CMD', '/stop');
         await player.stopTrack();
         state.reset();
         return player.sendChatMessage(t('j_stop'));
     },
 
     async '/pause'({ player }) {
-        log.info('CMD', t('log_cmd_pause'));
+        log.info('CMD', '/pause');
         return player.pauseTrack();
     },
 
     async '/resume'({ player }) {
-        log.info('CMD', t('log_cmd_resume'));
+        log.info('CMD', '/resume');
         return player.resumeTrack();
     },
 
@@ -131,7 +131,7 @@ const commands = {
             return player.sendChatMessage(t('j_volume_current', { vol: cur }));
         }
         const val = Math.max(0, Math.min(100, parseInt(args[1], 10) || 50));
-        log.info('CMD', t('log_cmd_volume', { val }));
+        log.info('CMD', `/volume: ${val}%`);
         await player.setVolume(val);
     },
 
@@ -146,7 +146,7 @@ const commands = {
             url: tr.url
         });
         if (state.loopMode !== 'off') {
-            msg += `\n🔁 (${t(state.loopMode === 'track' ? 'word_loop_1' : 'word_loop_q')})`;
+            msg += `\n(${t(state.loopMode === 'track' ? 'word_loop_1' : 'word_loop_q')})`;
         }
         return player.sendChatMessage(msg);
     },
@@ -167,7 +167,7 @@ const commands = {
     async '/help'({ player }) { return player.sendChatMessage(t('j_help')); },
 
     async '/leave'({ player, leaveBot }) {
-        log.info('CMD', t('log_cmd_leave'));
+        log.info('CMD', '/leave');
         await player.sendChatMessage(t('j_leave'));
         setTimeout(leaveBot, 1000);
     }

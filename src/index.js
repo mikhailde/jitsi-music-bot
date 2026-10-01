@@ -3,15 +3,22 @@ const { startAudioServer } = require('./audio');
 const { leaveJitsiBot } = require('./jitsi');
 const { createTelegramBot } = require('./telegram');
 const log = require('./utils/logger');
-const t = require('./config/i18n');
+
+process.on('unhandledRejection', (reason) => {
+    log.error('SYSTEM', 'Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    log.error('SYSTEM', 'Uncaught Exception:', err);
+});
 
 (async () => {
-    log.info('SYSTEM', t('log_init'));
+    log.info('SYSTEM', 'Initializing service...');
     await startAudioServer();
 
     const bot = createTelegramBot();
     const shutdown = async () => {
-        log.warn('SYSTEM', t('log_shutdown'));
+        log.warn('SYSTEM', 'Service shutdown: leaving conference...');
         const timer = setTimeout(() => process.exit(0), config.shutdownTimeoutMs);
         await leaveJitsiBot().catch(() => {});
         clearTimeout(timer);
@@ -21,5 +28,5 @@ const t = require('./config/i18n');
 
     ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, shutdown));
     bot.start();
-    log.info('SYSTEM', t('log_tg_started'));
-})().catch(e => log.error('SYSTEM', t('log_fatal'), e));
+    log.info('SYSTEM', 'Telegram bot started');
+})().catch(e => log.error('SYSTEM', 'Fatal startup error:', e));

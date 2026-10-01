@@ -13,6 +13,7 @@ let browser = null;
 let page = null;
 let currentRoomName = null;
 let watchdog = null;
+let isConnecting = false;
 
 const bridge = new JitsiPlayerBridge(() => page);
 
@@ -20,16 +21,19 @@ async function handleTrackEnd(isSkip = false) {
     if (playerState.isHandlingEnd) return;
     playerState.isHandlingEnd = true;
 
-    if (playerState.currentTrack) {
-        log.debug('PLAYER', t('log_player_ended', { title: playerState.currentTrack.title, skip: String(isSkip) }));
-        playerState.addToHistory(playerState.currentTrack);
-        if (playerState.loopMode === 'track' && !isSkip) playerState.enqueue(playerState.currentTrack, true);
-        else if (playerState.loopMode === 'queue') playerState.enqueue(playerState.currentTrack, false);
-    }
+    try {
+        if (playerState.currentTrack) {
+            log.debug('PLAYER', `Track ended: "${playerState.currentTrack.title}" (skip: ${isSkip})`);
+            playerState.addToHistory(playerState.currentTrack);
+            if (playerState.loopMode === 'track' && !isSkip) playerState.enqueue(playerState.currentTrack, true);
+            else if (playerState.loopMode === 'queue') playerState.enqueue(playerState.currentTrack, false);
+        }
 
-    playerState.isPlaying = false;
-    await playNextInQueue();
-    playerState.isHandlingEnd = false;
+        playerState.isPlaying = false;
+        await playNextInQueue();
+    } finally {
+        playerState.isHandlingEnd = false;
+    }
 }
 
 async function playNextInQueue() {
@@ -38,7 +42,7 @@ async function playNextInQueue() {
         if (playerState.isRadioMode) {
             const seed = playerState.history[0] || playerState.currentTrack;
             if (seed) {
-                log.info('RADIO', t('log_radio_seed', { title: seed.title }));
+                log.info('RADIO', `Queue empty, autoplay from: "${seed.title}"`);
                 await bridge.sendChatMessage(t('j_radio_wait'));
                 return fetchNextRadioTrack({
                     state: playerState,
@@ -48,13 +52,13 @@ async function playNextInQueue() {
                 });
             }
         }
-        log.info('PLAYER', t('log_player_empty'));
+        log.info('PLAYER', 'Queue is empty');
         return bridge.sendChatMessage(t('j_queue_empty'));
     }
 
     const track = playerState.dequeue();
     playerState.isPlaying = true;
-    log.info('PLAYER', t('log_player_now', { title: track.title, duration: formatTime(track.duration) }));
+    log.info('PLAYER', `Playing: "${track.title}" [${formatTime(track.duration)}]`);
 
     await bridge.sendChatMessage(t('j_play_now', {
         title: track.title,
@@ -86,46 +90,54 @@ const playerContext = {
 };
 
 async function startJitsiBot(roomName) {
-    if (browser) return false;
+    if (browser || isConnecting) return false;
+    isConnecting = true;
     currentRoomName = roomName;
-    log.info('JITSI', t('log_jitsi_connecting', { room: roomName }));
+    log.info('JITSI', `Connecting to room: "${roomName}"`);
 
-    const session = await launchJitsiBrowser({
-        roomName,
-        onTrackEnded: () => handleTrackEnd(false),
-        onTrackError: async (err) => {
-            log.error('PLAYER', t('log_player_err'), err);
-            if (playerState.currentTrack) {
-                await bridge.sendChatMessage(t('j_err_track', { title: playerState.currentTrack.title }));
-            }
-            await handleTrackEnd(true);
-        },
-        onCommandReceived: text => dispatch(text, {
-            state: playerState,
-            player: playerContext,
-            leaveBot: () => leaveJitsiBot(),
-            fetchRadio: tr => fetchNextRadioTrack({
+    try {
+        const session = await launchJitsiBrowser({
+            roomName,
+            onTrackEnded: () => handleTrackEnd(false),
+            onTrackError: async (err) => {
+                log.error('PLAYER', 'Playback error:', err);
+                if (playerState.currentTrack) {
+                    await bridge.sendChatMessage(t('j_err_track', { title: playerState.currentTrack.title }));
+                }
+                await handleTrackEnd(true);
+            },
+            onCommandReceived: text => dispatch(text, {
                 state: playerState,
-                sendChatMessage: m => bridge.sendChatMessage(m),
-                playNextInQueue,
-                track: tr
-            }),
-            getTrackInfo
-        })
-    });
+                player: playerContext,
+                leaveBot: () => leaveJitsiBot(),
+                fetchRadio: tr => fetchNextRadioTrack({
+                    state: playerState,
+                    sendChatMessage: m => bridge.sendChatMessage(m),
+                    playNextInQueue,
+                    track: tr
+                }),
+                getTrackInfo
+            })
+        });
 
-    browser = session.browser;
-    page = session.page;
-    log.info('JITSI', t('log_jitsi_connected', { room: roomName }));
+        browser = session.browser;
+        page = session.page;
+        log.info('JITSI', `Connected to room: "${roomName}"`);
 
-    watchdog = new AfkWatchdog({
-        getPage: () => page,
-        sendChat: m => bridge.sendChatMessage(m),
-        onTimeout: () => leaveJitsiBot()
-    });
-    watchdog.start();
+        watchdog = new AfkWatchdog({
+            getPage: () => page,
+            sendChat: m => bridge.sendChatMessage(m),
+            onTimeout: () => leaveJitsiBot()
+        });
+        watchdog.start();
 
-    return true;
+        return true;
+    } catch (err) {
+        currentRoomName = null;
+        throw err;
+    } finally {
+        isConnecting = false;
+    }
 }
 
 async function leaveJitsiBot() {
@@ -133,7 +145,7 @@ async function leaveJitsiBot() {
     watchdog = null;
 
     if (browser) {
-        log.info('JITSI', t('log_jitsi_disconnecting', { room: currentRoomName || '' }));
+        log.info('JITSI', `Disconnecting from room: "${currentRoomName}"`);
         if (page) {
             await page.evaluate(async () => {
                 try {
@@ -151,7 +163,7 @@ async function leaveJitsiBot() {
         page = null;
         playerState.reset();
         currentRoomName = null;
-        log.info('JITSI', t('log_jitsi_disconnected'));
+        log.info('JITSI', 'Disconnected from call');
     }
 }
 

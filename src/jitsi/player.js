@@ -19,37 +19,30 @@ class JitsiPlayerBridge {
 
     playTrack(ytUrl, vol) {
         return this.eval(async ({ ytUrl, vol, port }) => {
-            // 1. Активируем AudioContext если он в suspended
-            if (window.botAudioContext && window.botAudioContext.state === 'suspended') {
+            if (window.botAudioContext?.state === 'suspended') {
                 await window.botAudioContext.resume();
             }
 
-            // 2. Включаем микрофон, если Jitsi замьютил бота при входе
             try {
                 if (window.APP?.conference?.isLocalAudioMuted()) {
                     window.APP.conference.muteAudio(false);
                 }
             } catch {}
 
-            // 3. Останавливаем предыдущий трек
-            const prev = window.currentAudioElement;
-            if (prev) {
-                window.isManuallyStopped = true;
-                prev.onended = prev.onerror = null;
-                prev.pause();
-                prev.removeAttribute('src');
-                prev.load();
-            }
+            const audio = window.botAudioElement;
+            if (!audio) return;
+
+            // Сброс предыдущего стрима
+            window.isManuallyStopped = true;
+            audio.onended = audio.onerror = null;
+            audio.pause();
+            audio.removeAttribute('src');
             window.isManuallyStopped = false;
 
-            // 4. Используем 127.0.0.1 для исключения таймаута IPv6
-            const streamUrl = `http://127.0.0.1:${port}/audio-stream?url=${encodeURIComponent(ytUrl)}&t=${Date.now()}`;
-            const audio = new Audio(streamUrl);
-            audio.crossOrigin = 'anonymous';
-            audio.volume = vol;
-
-            const source = window.botAudioContext.createMediaElementSource(audio);
-            source.connect(window.botDestination);
+            // Аппаратная регулировка громкости через GainNode
+            if (window.botGainNode) {
+                window.botGainNode.gain.value = vol;
+            }
 
             let done = false;
             const end = (fn, arg) => {
@@ -61,52 +54,51 @@ class JitsiPlayerBridge {
             audio.onerror = () => end(window.onTrackError, `Audio Error Code: ${audio.error?.code}`);
             audio.onended = () => end(window.onTrackEnded);
 
+            audio.src = `http://127.0.0.1:${port}/audio-stream?url=${encodeURIComponent(ytUrl)}&t=${Date.now()}`;
             try {
                 await audio.play();
             } catch (e) {
                 if (e.name !== 'AbortError') end(window.onTrackError, `Play API Error: ${e.message}`);
             }
-
-            window.currentAudioElement = audio;
         }, { ytUrl, vol, port: config.port });
     }
 
     stopTrack() {
         return this.eval(() => {
-            const a = window.currentAudioElement;
+            const a = window.botAudioElement;
             if (a) {
                 window.isManuallyStopped = true;
                 a.onended = a.onerror = null;
                 a.pause();
                 a.removeAttribute('src');
-                a.load();
-                window.currentAudioElement = null;
             }
         });
     }
 
     async pauseTrack() {
-        await this.eval(() => window.currentAudioElement?.pause());
+        await this.eval(() => window.botAudioElement?.pause());
         return this.sendChatMessage(t('j_pause'));
     }
 
     async resumeTrack() {
         await this.eval(async () => {
             if (window.botAudioContext?.state === 'suspended') await window.botAudioContext.resume();
-            await window.currentAudioElement?.play();
+            await window.botAudioElement?.play();
         });
         return this.sendChatMessage(t('j_resume'));
     }
 
     async setVolume(vol) {
         const factor = vol / 100;
-        await this.eval(v => { if (window.currentAudioElement) window.currentAudioElement.volume = v; }, factor);
+        await this.eval(v => {
+            if (window.botGainNode) window.botGainNode.gain.value = v;
+        }, factor);
         await this.sendChatMessage(t('j_volume', { vol }));
         return factor;
     }
 
     async getCurrentTime() {
-        return (await this.eval(() => window.currentAudioElement?.currentTime)) || 0;
+        return (await this.eval(() => window.botAudioElement?.currentTime)) || 0;
     }
 }
 

@@ -3,15 +3,15 @@ services:
     build: .
     container_name: jitsi-music-bot
     restart: unless-stopped
+    stop_grace_period: 10s
     env_file: .env
-    network_mode: host
     environment:
       TZ: Europe/Moscow
     deploy:
       resources:
         limits:
           cpus: '2.0'
-          memory: 1G
+          memory: 1.5G
         reservations:
           cpus: '0.5'
           memory: 500M

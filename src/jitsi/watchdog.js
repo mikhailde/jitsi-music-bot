@@ -23,16 +23,16 @@ class AfkWatchdog {
                 if (count <= 1) {
                     this.afkSeconds += stepSec;
                     if (this.afkSeconds % 60 === 0) {
-                        log.info('AFK', t('log_afk_waiting', { cur: this.afkSeconds / 60, max: config.afkTimeoutMs / 60000 }));
+                        log.info('AFK', `Empty room: ${this.afkSeconds / 60}/${config.afkTimeoutMs / 60000} min`);
                     }
                     if (this.afkSeconds >= (config.afkTimeoutMs / 1000)) {
                         this.stop();
-                        log.info('AFK', t('log_afk_timeout', { max: config.afkTimeoutMs / 60000 }));
+                        log.info('AFK', `AFK limit reached (${config.afkTimeoutMs / 60000} min), exiting`);
                         await this.sendChat?.(t('j_afk', { min: config.afkTimeoutMs / 60000 })).catch(() => {});
                         await this.onTimeout();
                     }
                 } else if (this.afkSeconds > 0) {
-                    log.info('AFK', t('log_afk_reset'));
+                    log.info('AFK', 'Participants detected, AFK timer reset');
                     this.afkSeconds = 0;
                 }
             } catch {
