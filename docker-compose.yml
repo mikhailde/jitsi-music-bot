@@ -5,8 +5,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 10s
     env_file: .env
-    environment:
-      TZ: Europe/Moscow
+    network_mode: host
     deploy:
       resources:
         limits:

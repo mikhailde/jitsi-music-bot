@@ -15,7 +15,8 @@ class PlayerState {
             loopMode: 'off',
             isRadioMode: false,
             isFetchingRadio: false,
-            isHandlingEnd: false
+            isHandlingEnd: false,
+            isStartingTrack: false
         });
     }
 

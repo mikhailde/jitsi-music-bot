@@ -75,6 +75,7 @@ All parameters are **mandatory** (strict fail-fast validation):
 | **Main** | `PORT` | Local audio streamer port | `3000` |
 | | `LANGUAGE` | Interface language (`ru` or `en`) | `en` |
 | | `DEBUG_MODE` | Verbose debug and benchmark logging | `false` |
+| | `TZ` | Container timezone for logs (optional) | `UTC` |
 | | `PROXY_URL` | SOCKS5/HTTP proxy URL (optional) | `socks5://user:pass@host:port` |
 | **Security** | `TELEGRAM_TOKEN` | Telegram bot token from @BotFather | `123456:ABC-DEF...` |
 | | `TELEGRAM_ADMIN_IDS`| Comma-separated admin IDs (empty = public) | `678094226,12345678` |
@@ -89,7 +90,8 @@ All parameters are **mandatory** (strict fail-fast validation):
 | | `OPUS_BITRATE` | Maximum Opus average bitrate | `510000` |
 | | `HISTORY_LIMIT` | Track history capacity | `5` |
 | | `QUEUE_PAGE_SIZE` | Tracks displayed per `/queue` call | `5` |
-| | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `5` |
+| | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `10` |
+| | `MAX_PLAYLIST_ITEMS`| Maximum tracks loaded from a single playlist | `50` |
 | **Timeouts** | `AFK_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
 | | `AFK_CHECK_INTERVAL_SEC` | Room participant poll interval in seconds | `15` |
 | | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds | `3` |
