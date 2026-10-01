@@ -19,6 +19,7 @@ class JitsiSession {
         this.state = new PlayerState();
         this.bridge = new JitsiPlayerBridge(() => this.page);
         this.isDestroyed = false;
+        this.commandChain = Promise.resolve();
 
         this.playerContext = {
             sendChatMessage: m => this.bridge.sendChatMessage(m),
@@ -44,17 +45,22 @@ class JitsiSession {
                 }
                 await this.handleTrackEnd(true);
             },
-            onCommandReceived: text => dispatch(text, {
-                state: this.state,
-                player: this.playerContext,
-                leaveBot: () => this.destroy(),
-                fetchRadio: tr => fetchNextRadioTrack({
-                    state: this.state,
-                    playNextInQueue: () => this.playNextInQueue(),
-                    track: tr
-                }),
-                getTrackInfo
-            })
+            onCommandReceived: text => {
+                this.commandChain = this.commandChain.then(async () => {
+                    if (this.isDestroyed) return;
+                    await dispatch(text, {
+                        state: this.state,
+                        player: this.playerContext,
+                        leaveBot: () => this.destroy(),
+                        fetchRadio: tr => fetchNextRadioTrack({
+                            state: this.state,
+                            playNextInQueue: () => this.playNextInQueue(),
+                            track: tr
+                        }),
+                        getTrackInfo
+                    });
+                }).catch(err => log.error('CMD', 'Command execution error:', err));
+            }
         });
 
         this.browser = session.browser;
@@ -92,45 +98,50 @@ class JitsiSession {
     }
 
     async playNextInQueue() {
-        if (this.isDestroyed) return;
+        if (this.isDestroyed || this.state.isStartingTrack) return;
+        this.state.isStartingTrack = true;
 
-        if (this.state.queue.length === 0) {
-            this.state.isPlaying = false;
-            if (this.state.isRadioMode) {
-                const seed = this.state.history[0] || this.state.currentTrack;
-                if (seed) {
-                    log.info('RADIO', `Queue empty, autoplay from: "${seed.title}"`);
-                    await this.bridge.sendChatMessage(t('j_radio_wait'));
-                    return fetchNextRadioTrack({
-                        state: this.state,
-                        playNextInQueue: () => this.playNextInQueue(),
-                        track: seed
-                    });
+        try {
+            if (this.state.queue.length === 0) {
+                this.state.isPlaying = false;
+                if (this.state.isRadioMode) {
+                    const seed = this.state.history[0] || this.state.currentTrack;
+                    if (seed) {
+                        log.info('RADIO', `Queue empty, autoplay from: "${seed.title}"`);
+                        await this.bridge.sendChatMessage(t('j_radio_wait'));
+                        return fetchNextRadioTrack({
+                            state: this.state,
+                            playNextInQueue: () => this.playNextInQueue(),
+                            track: seed
+                        });
+                    }
                 }
+                log.info('PLAYER', 'Queue is empty');
+                return this.bridge.sendChatMessage(t('j_queue_empty'));
             }
-            log.info('PLAYER', 'Queue is empty');
-            return this.bridge.sendChatMessage(t('j_queue_empty'));
+
+            const track = this.state.dequeue();
+            this.state.isPlaying = true;
+            log.info('PLAYER', `Playing: "${track.title}" [${formatTime(track.duration)}]`);
+
+            await this.bridge.sendChatMessage(t('j_play_now', {
+                title: track.title,
+                duration: formatTime(track.duration),
+                url: track.url
+            }));
+
+            if (this.state.shouldTriggerRadio()) {
+                fetchNextRadioTrack({
+                    state: this.state,
+                    playNextInQueue: () => this.playNextInQueue(),
+                    track
+                });
+            }
+
+            await this.bridge.playTrack(track.url, this.state.currentVolume);
+        } finally {
+            this.state.isStartingTrack = false;
         }
-
-        const track = this.state.dequeue();
-        this.state.isPlaying = true;
-        log.info('PLAYER', `Playing: "${track.title}" [${formatTime(track.duration)}]`);
-
-        await this.bridge.sendChatMessage(t('j_play_now', {
-            title: track.title,
-            duration: formatTime(track.duration),
-            url: track.url
-        }));
-
-        if (this.state.shouldTriggerRadio()) {
-            fetchNextRadioTrack({
-                state: this.state,
-                playNextInQueue: () => this.playNextInQueue(),
-                track
-            });
-        }
-
-        await this.bridge.playTrack(track.url, this.state.currentVolume);
     }
 
     async destroy() {

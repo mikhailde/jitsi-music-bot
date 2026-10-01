@@ -17,13 +17,14 @@ async function updateYtDlp() {
 }
 
 async function getTrackInfo(query, playlistItems = null) {
+    const itemsLimit = playlistItems || (query.startsWith('http') ? `1-${config.maxPlaylistItems}` : null);
     const args = {
         print: '%(title)s|https://www.youtube.com/watch?v=%(id)s|%(duration)s',
         flatPlaylist: true,
         noWarnings: true,
         quiet: true,
         jsRuntimes: 'deno',
-        ...(playlistItems ? { playlistItems } : {}),
+        ...(itemsLimit ? { playlistItems: itemsLimit } : {}),
         ...(config.proxy ? { proxy: config.proxy } : {})
     };
 

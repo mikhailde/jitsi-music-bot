@@ -1,5 +1,5 @@
 const config = require('./index');
-const idx = config.lang === 'en' ? 1 : 0;
+const idx = config.lang === 'ru' ? 0 : 1;
 
 const T = {
     tg_start: [

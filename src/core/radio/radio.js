@@ -18,7 +18,8 @@ async function fetchNextRadioTrack({ state, playNextInQueue, track }) {
             log.debug('RADIO', `Next track queued: "${next.title}"`);
             if (!state.isPlaying && !state.isHandlingEnd) await playNextInQueue();
         }
-    } catch {
+    } catch (err) {
+        log.debug('RADIO', 'Radio track fetch error:', err.message);
     } finally {
         state.isFetchingRadio = false;
     }

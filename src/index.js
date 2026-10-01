@@ -21,7 +21,7 @@ process.on('uncaughtException', (err) => {
         const timer = setTimeout(() => process.exit(0), config.shutdownTimeoutSec * 1000);
         await leaveJitsiBot().catch(() => {});
         clearTimeout(timer);
-        bot.stop();
+        await bot.stop();
         process.exit(0);
     };
 

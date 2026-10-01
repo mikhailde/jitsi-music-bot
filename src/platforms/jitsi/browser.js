@@ -45,7 +45,21 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
         window.botAudioElement = audio;
 
         const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-        navigator.mediaDevices.getUserMedia = async (c) => (c?.audio ? dest.stream : orig(c));
+        navigator.mediaDevices.getUserMedia = async (c) => {
+            if (c?.audio) {
+                const stream = dest.stream;
+                stream.getAudioTracks().forEach(track => {
+                    track.applyConstraints?.({
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        channelCount: 2
+                    }).catch(() => {});
+                });
+                return stream;
+            }
+            return orig(c);
+        };
     });
 
     await Promise.all([
@@ -78,9 +92,12 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
     }
 
     await page.evaluate((joinTime) => {
+        let elapsed = 0;
         const check = setInterval(() => {
+            elapsed += 1000;
             const store = window.APP?.store;
             if (store) {
+                clearInterval(check);
                 let lastCount = store.getState()['features/chat']?.messages?.length || 0;
                 store.subscribe(() => {
                     const msgs = store.getState()['features/chat']?.messages;
@@ -94,6 +111,7 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
                         lastCount = msgs.length;
                     }
                 });
+            } else if (elapsed >= 30000) {
                 clearInterval(check);
             }
         }, 1000);

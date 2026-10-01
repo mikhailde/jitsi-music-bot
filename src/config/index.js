@@ -13,6 +13,7 @@ const requiredKeys = [
     'HISTORY_LIMIT',
     'QUEUE_PAGE_SIZE',
     'RADIO_ITEMS_LIMIT',
+    'MAX_PLAYLIST_ITEMS',
     'JITSI_DOMAIN',
     'BOT_NAME',
     'BOT_AVATAR',
@@ -72,6 +73,7 @@ module.exports = {
     historyLimit: Math.max(1, getNum('HISTORY_LIMIT')),
     queuePageSize: Math.max(1, getNum('QUEUE_PAGE_SIZE')),
     radioItemsLimit: Math.max(1, getNum('RADIO_ITEMS_LIMIT')),
+    maxPlaylistItems: Math.max(1, getNum('MAX_PLAYLIST_ITEMS')),
 
     jitsiDomain: getStr('JITSI_DOMAIN'),
     botName: getStr('BOT_NAME'),

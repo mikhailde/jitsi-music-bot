@@ -3,6 +3,17 @@ const ytDlp = require('youtube-dl-exec');
 const config = require('../config');
 const log = require('../utils/logger');
 
+const killProcessGroup = (child) => {
+    if (!child || !child.pid) return;
+    try {
+        process.kill(-child.pid, 'SIGKILL');
+    } catch {
+        try {
+            child.kill('SIGKILL');
+        } catch {}
+    }
+};
+
 function pipeAudioStream(url, res, req) {
     log.info('AUDIO', `Stream started [${config.audioBitrate}]: ${url.slice(0, 60)}...`);
     const args = {
@@ -14,10 +25,10 @@ function pipeAudioStream(url, res, req) {
         ...(config.proxy ? { proxy: config.proxy } : {})
     };
 
-    const yt = ytDlp.exec(url, args);
+    const yt = ytDlp.exec(url, args, { detached: true });
     const ffmpeg = spawn('ffmpeg', [
         '-i', 'pipe:0', '-c:a', 'libopus', '-b:a', config.audioBitrate, '-v', 'error', '-f', 'webm', 'pipe:1'
-    ]);
+    ], { detached: true });
 
     [yt.stdout, ffmpeg.stdin, ffmpeg.stdout].forEach(s => s?.on('error', () => {}));
     yt.stdout.pipe(ffmpeg.stdin);
@@ -36,8 +47,8 @@ function pipeAudioStream(url, res, req) {
         if (closed) return;
         closed = true;
         log.debug('AUDIO', 'Stream closed');
-        yt.child?.kill('SIGKILL');
-        ffmpeg.kill('SIGKILL');
+        killProcessGroup(yt.child);
+        killProcessGroup(ffmpeg);
     };
 
     ffmpeg.stdout.once('data', (chunk) => {

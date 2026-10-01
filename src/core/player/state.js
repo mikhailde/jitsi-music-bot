@@ -89,6 +89,4 @@ class PlayerState {
     }
 }
 
-const playerState = new PlayerState();
-
-module.exports = { PlayerState, playerState };
+module.exports = { PlayerState };
