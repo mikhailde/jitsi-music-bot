@@ -1,8 +1,8 @@
 const config = require('../config');
 const { getTrackInfo } = require('../audio');
-const t = require('../config/i18n');
+const log = require('../utils/logger');
 
-async function fetchNextRadioTrack({ state, sendChatMessage, playNextInQueue, track }) {
+async function fetchNextRadioTrack({ state, playNextInQueue, track }) {
     if (!state.isRadioMode || state.isFetchingRadio || !track?.url) return;
     state.isFetchingRadio = true;
 
@@ -15,7 +15,7 @@ async function fetchNextRadioTrack({ state, sendChatMessage, playNextInQueue, tr
 
         if (next && state.isRadioMode && state.queue.length === 0) {
             state.enqueue(next);
-            await sendChatMessage(t('j_radio_found', { title: next.title }));
+            log.debug('RADIO', `Next track queued: "${next.title}"`);
             if (!state.isPlaying && !state.isHandlingEnd) await playNextInQueue();
         }
     } catch {

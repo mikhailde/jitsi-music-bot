@@ -46,7 +46,6 @@ async function playNextInQueue() {
                 await bridge.sendChatMessage(t('j_radio_wait'));
                 return fetchNextRadioTrack({
                     state: playerState,
-                    sendChatMessage: m => bridge.sendChatMessage(m),
                     playNextInQueue,
                     track: seed
                 });
@@ -69,7 +68,6 @@ async function playNextInQueue() {
     if (playerState.shouldTriggerRadio()) {
         fetchNextRadioTrack({
             state: playerState,
-            sendChatMessage: m => bridge.sendChatMessage(m),
             playNextInQueue,
             track
         });
@@ -112,7 +110,6 @@ async function startJitsiBot(roomName) {
                 leaveBot: () => leaveJitsiBot(),
                 fetchRadio: tr => fetchNextRadioTrack({
                     state: playerState,
-                    sendChatMessage: m => bridge.sendChatMessage(m),
                     playNextInQueue,
                     track: tr
                 }),

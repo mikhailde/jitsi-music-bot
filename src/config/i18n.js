@@ -58,7 +58,6 @@ const T = {
     j_radio_on: ['Радио: ВКЛЮЧЕНО (автоподбор треков)', 'Radio: ENABLED (autoplay)'],
     j_radio_off: ['Радио: ВЫКЛЮЧЕНО', 'Radio: DISABLED'],
     j_radio_wait: ['Радио: подбор следующего трека...', 'Radio: finding next track...'],
-    j_radio_found: ['Радио: следующий трек — {title}', 'Radio: next track — {title}'],
     j_loop_track: ['Повтор трека: ВКЛЮЧЕН', 'Track repeat: ENABLED'],
     j_loop_queue: ['Повтор очереди: ВКЛЮЧЕН', 'Queue repeat: ENABLED'],
     j_loop_off: ['Повтор: ВЫКЛЮЧЕН', 'Repeat: DISABLED'],
