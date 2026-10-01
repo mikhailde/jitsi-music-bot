@@ -116,8 +116,8 @@ class JitsiSession {
                         });
                     }
                 }
-                log.info('PLAYER', 'Queue is empty');
-                return this.bridge.sendChatMessage(t('j_queue_empty'));
+                log.info('PLAYER', 'Playback finished, idle');
+                return;
             }
 
             const track = this.state.dequeue();
