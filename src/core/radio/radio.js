@@ -35,7 +35,7 @@ async function fetchNextRadioTrack({ state, playNextInQueue, sendChat, track }) 
                 if (state.isRadioMode && !state.queue.length) {
                     state.enqueue(fresh[0]);
                     log.debug('RADIO', `Next track queued: "${fresh[0].title}" (mix of: "${currentSeed.title}")`);
-                    if (!state.isPlaying && !state.isHandlingEnd) await playNextInQueue();
+                    if (!state.isPlaying) await playNextInQueue();
                 }
                 return;
             }
