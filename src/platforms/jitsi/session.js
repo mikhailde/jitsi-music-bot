@@ -1,6 +1,6 @@
 const { launchJitsiBrowser } = require('./browser');
 const JitsiPlayerBridge = require('./bridge');
-const AfkWatchdog = require('./watchdog');
+const IdleWatchdog = require('./watchdog');
 const { dispatch } = require('./commands');
 const { PlayerState } = require('../../core/player/state');
 const { fetchNextRadioTrack } = require('../../core/radio/radio');
@@ -28,7 +28,7 @@ class JitsiSession {
         this.state = new PlayerState();
         this.bridge = new JitsiPlayerBridge(() => this.page);
         this.isDestroyed = false;
-        this.commandChain = Promise.resolve();
+        this.actionQueue = Promise.resolve();
         this.connectionTimer = null;
 
         this.playerContext = {
@@ -41,6 +41,14 @@ class JitsiSession {
             getCurrentTime: () => this.bridge.getCurrentTime(),
             handleTrackEnd: isSkip => this.handleTrackEnd(isSkip)
         };
+    }
+
+    queueAction(action) {
+        this.actionQueue = this.actionQueue.then(async () => {
+            if (this.isDestroyed) return;
+            await action();
+        }).catch(err => log.error('SESSION', 'Queued action error:', err));
+        return this.actionQueue;
     }
 
     fetchRadio(track) {
@@ -58,35 +66,35 @@ class JitsiSession {
     }
 
     async init() {
-        log.debug('JITSI', `Connecting to room: "${this.roomName}"...`);
+        log.debug('JITSI', `Connecting to room "${this.roomName}" (${this.domain})...`);
 
         const session = await launchJitsiBrowser({
             roomName: this.roomName,
             domain: this.domain,
-            onTrackEnded: () => this.handleTrackEnd(false),
-            onTrackError: async (err) => {
+            onTrackEnded: () => this.queueAction(() => this.handleTrackEnd(false)),
+            onTrackError: (err) => this.queueAction(async () => {
                 log.error('PLAYER', 'Playback error:', err);
                 if (this.state.currentTrack) {
                     await this.bridge.sendChatMessage(t('j_err_track', { title: this.state.currentTrack.title }));
                 }
                 await this.handleTrackEnd(true);
-            },
-            onKicked: () => this.destroy('Kicked by moderator'),
-            onConferenceFailed: err => this.destroy(`Conference failed: ${err}`),
+            }),
+            onKicked: () => this.destroy(t('reason_kicked')),
+            onConferenceFailed: err => this.destroy(t('reason_conn_failed', { err })),
             onConnectionInterrupted: () => {
                 log.warn('JITSI', `Connection interrupted, waiting up to ${config.reconnectTimeoutSec}s...`);
                 this.clearConnectionTimer();
                 this.connectionTimer = setTimeout(() => {
-                    this.destroy(`Connection timeout (${config.reconnectTimeoutSec}s)`);
+                    this.destroy(t('reason_conn_timeout', { sec: config.reconnectTimeoutSec }));
                 }, config.reconnectTimeoutSec * 1000);
             },
             onConnectionRestored: () => {
                 if (this.connectionTimer) {
                     this.clearConnectionTimer();
-                    log.info('JITSI', 'Connection restored successfully');
+                    log.info('JITSI', 'Connection restored');
                 }
             },
-            onCrash: reason => this.destroy(`Crash: ${reason}`),
+            onCrash: reason => this.destroy(t('reason_crash', { err: reason })),
             onLocalAudioMuted: async () => {
                 if (this.isDestroyed || !this.state.isPlaying) return;
                 const wasMuted = await this.bridge.eval(() => {
@@ -101,18 +109,15 @@ class JitsiSession {
                     await this.bridge.sendChatMessage(t('j_pause'));
                 }
             },
-            onCommandReceived: text => {
-                this.commandChain = this.commandChain.then(async () => {
-                    if (this.isDestroyed) return;
-                    await dispatch(text, {
-                        state: this.state,
-                        player: this.playerContext,
-                        leaveBot: () => this.destroy('Chat /leave'),
-                        fetchRadio: tr => this.fetchRadio(tr),
-                        getTrackInfo
-                    });
-                }).catch(err => log.error('CMD', 'Command execution error:', err));
-            }
+            onCommandReceived: text => this.queueAction(async () => {
+                await dispatch(text, {
+                    state: this.state,
+                    player: this.playerContext,
+                    leaveBot: () => this.destroy(t('reason_chat_leave')),
+                    fetchRadio: tr => this.fetchRadio(tr),
+                    getTrackInfo
+                });
+            })
         });
 
         if (this.isDestroyed) {
@@ -122,12 +127,12 @@ class JitsiSession {
 
         this.browser = session.browser;
         this.page = session.page;
-        log.info('JITSI', `Connected to room: "${this.roomName}"`);
+        log.info('JITSI', `Connected to room "${this.roomName}" (${this.domain})`);
 
-        this.watchdog = new AfkWatchdog({
+        this.watchdog = new IdleWatchdog({
             getPage: () => this.page,
             sendChat: m => this.bridge.sendChatMessage(m),
-            onTimeout: () => this.destroy('AFK timeout (empty room)')
+            onTimeout: () => this.destroy(t('reason_idle'))
         });
         this.watchdog.start();
     }
@@ -205,7 +210,7 @@ class JitsiSession {
         }
     }
 
-    async destroy(reason = 'Normal disconnect') {
+    async destroy(reason = t('reason_normal')) {
         if (this.isDestroyed) return;
         this.isDestroyed = true;
 
@@ -225,7 +230,7 @@ class JitsiSession {
                     } catch {}
                 }).catch(() => {});
 
-                await this.page.waitForTimeout(600).catch(() => {});
+                await new Promise(r => setTimeout(r, 600));
                 await this.page.close().catch(() => {});
             }
             await this.browser.close().catch(() => {});
@@ -235,7 +240,7 @@ class JitsiSession {
         }
 
         this.state.reset();
-        this.onSessionEnd?.(this);
+        this.onSessionEnd?.(this, reason);
     }
 
     getStatus() {

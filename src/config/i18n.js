@@ -3,24 +3,27 @@ const idx = config.lang === 'ru' ? 0 : 1;
 
 const RAW = {
     tg_start: [
-        'Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — состояние плеера и очередь\n/leave — отключить от звонка',
-        'Jitsi Music Bot\n\nCommands:\n/join <room or URL> — connect to call\n/status — player state and queue\n/leave — disconnect from call'
+        '🎵 Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — состояние плеера и очередь\n/leave — отключить от звонка',
+        '🎵 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — connect to call\n/status — player state and queue\n/leave — disconnect from call'
     ],
     tg_empty_room: [
         'Укажите имя комнаты или ссылку:\n/join my-room',
         'Specify a room name or URL:\n/join my-room'
     ],
-    tg_joining: ['Подключение к: {room}...', 'Connecting to: {room}...'],
+    tg_joining: ['⏳ Подключение к {room}...', '⏳ Connecting to {room}...'],
     tg_joined: [
-        'Бот подключен к звонку: {url}\nУправление музыкой доступно в чате Jitsi.',
-        'Bot connected to meeting: {url}\nControl playback directly in Jitsi chat.'
+        '✅ Бот подключен к звонку: {url}\nУправление музыкой доступно в чате Jitsi.',
+        '✅ Bot connected to meeting: {url}\nControl playback directly in Jitsi chat.'
     ],
     tg_busy: [
-        'Бот уже находится в другой комнате.\nИспользуйте /status или /leave.',
-        'Bot is already in another room.\nUse /status or /leave.'
+        '⚠️ Бот уже находится в другой комнате.\nИспользуйте /status или /leave.',
+        '⚠️ Bot is already in another room.\nUse /status or /leave.'
     ],
-    tg_error: ['Ошибка: {error}', 'Error: {error}'],
-    tg_left: ['Бот отключился от звонка.', 'Bot left the call.'],
+    tg_error: ['❌ Ошибка: {error}', '❌ Error: {error}'],
+    tg_left: [
+        'Бот отключился от звонка.\nПричина: {reason}',
+        'Bot left the call.\nReason: {reason}'
+    ],
     tg_status_free: [
         'Бот свободен.\nПодключить: /join <комната>',
         'Bot is currently idle.\nConnect: /join <room>'
@@ -30,16 +33,27 @@ const RAW = {
         'In call: {url}\nTrack: {track}\nQueue: {queue}\nVolume: {volume}%\nLoop: {loop}\nRadio: {radio}'
     ],
     tg_auth_err: [
-        'Доступ ограничен (ваш Telegram ID: {userId}).',
-        'Access denied (your Telegram ID: {userId}).'
+        '⛔ Доступ ограничен (ваш Telegram ID: {userId}).',
+        '⛔ Access denied (your Telegram ID: {userId}).'
     ],
+
+    reason_idle: ['Комната пуста (IDLE таймаут)', 'Empty room (IDLE timeout)'],
+    reason_chat_leave: ['Команда /leave в чате звонка', '/leave command in meeting chat'],
+    reason_kicked: ['Исключен модератором', 'Kicked by moderator'],
+    reason_conn_timeout: ['Таймаут восстановления связи ({sec} сек.)', 'Connection timeout ({sec}s)'],
+    reason_conn_failed: ['Ошибка конференции: {err}', 'Conference error: {err}'],
+    reason_crash: ['Сбой браузера: {err}', 'Browser crash: {err}'],
+    reason_init_failed: ['Сбой инициализации звонка', 'Conference initialization failed'],
+    reason_process_term: ['Перезапуск сервиса ({signal})', 'Service restart ({signal})'],
+    reason_tg_leave: ['Команда /leave в Telegram ({user})', 'Telegram /leave command ({user})'],
+    reason_normal: ['Штатное отключение', 'Normal disconnect'],
 
     j_search: ['Поиск: {query}...', 'Searching: {query}...'],
     j_not_found: ['Ничего не найдено.', 'Nothing found.'],
-    j_playlist_loaded: ['Плейлист загружен: добавлено {count} треков', 'Playlist loaded: added {count} tracks'],
+    j_playlist_loaded: ['Плейлист загружен (+{count})', 'Playlist loaded (+{count})'],
     j_play_now: ['▶ Играет [{duration}]: {title}\n{url}', '▶ Playing [{duration}]: {title}\n{url}'],
     j_added_next: ['⏭ Следующий [{duration}]: {title}\n{url}', '⏭ Next [{duration}]: {title}\n{url}'],
-    j_added_queue: ['Добавлено в очередь [{duration}]: {title}\n{url}', 'Added to queue [{duration}]: {title}\n{url}'],
+    j_added_queue: ['➕ Добавлен в очередь [{duration}]: {title}\n{url}', '➕ Queued [{duration}]: {title}\n{url}'],
     j_skip: ['Трек пропущен.', 'Track skipped.'],
     j_replay: ['Перезапуск трека.', 'Replaying track.'],
     j_stop: ['Воспроизведение остановлено, очередь очищена.', 'Playback stopped, queue cleared.'],
@@ -71,7 +85,7 @@ const RAW = {
     j_np_playing: ['Сейчас играет: {title}\n{bar} {total}\n{url}', 'Now playing: {title}\n{bar} {total}\n{url}'],
     j_queue_empty: ['Очередь пуста.', 'Queue is empty.'],
     j_queue_head: ['В очереди ({count}):\n\n', 'In queue ({count}):\n\n'],
-    j_queue_more: ['\n...и еще {count} треков в очереди.', '\n...and {count} more tracks in queue.'],
+    j_queue_more: ['\n\n...и еще в очереди: {count}.', '\n\n...and {count} more in queue.'],
     j_hist_empty: ['История пуста.', 'Playback history is empty.'],
     j_hist_head: ['Сыгранные треки:\n\n', 'Played tracks:\n\n'],
     j_shuffle_err: ['Недостаточно треков для перемешивания.', 'Not enough tracks to shuffle.'],
@@ -88,7 +102,7 @@ const RAW = {
         'BOT COMMANDS:\n\nPlayback:\n/play <query/URL> — play track\n/playnext <query/URL> — play next\n/pause, /resume — pause / resume\n/skip, /replay — skip / replay\n/stop — stop and reset queue\n\nQueue & Info:\n/np — current track progress\n/queue — view queue\n/history — played tracks history\n/shuffle — shuffle queue\n/move <from> <to> — move track\n/remove <number> — remove track\n/clear — clear queue\n\nSettings:\n/volume <0-100> — volume level\n/radio — autoplay radio mode\n/loop <track|queue|off> — repeat mode\n\n/leave — leave meeting call'
     ],
     j_leave: ['Отключение от звонка...', 'Leaving the call...'],
-    j_afk: [
+    j_idle: [
         'Комната пуста {sec} сек. Бот отключен.',
         'Room has been empty for {sec} sec. Bot disconnected.'
     ],

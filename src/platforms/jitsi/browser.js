@@ -40,13 +40,16 @@ async function launchJitsiBrowser({
     const page = await context.newPage();
 
     let isJoined = false;
+    let isClosing = false;
     let joinResolve, joinReject;
     const joinPromise = new Promise((resolve, reject) => {
         joinResolve = resolve;
         joinReject = reject;
     });
+    joinPromise.catch(() => {});
 
     const handleCrash = (reason) => {
+        if (isClosing) return;
         if (!isJoined) joinReject(new Error(reason));
         onCrash?.(reason);
     };
@@ -187,13 +190,15 @@ async function launchJitsiBrowser({
                             lastAudioMuted = isMuted;
 
                             const msgs = state['features/chat']?.messages;
-                            if (!msgs || msgs.length < lastCount) lastCount = msgs?.length || 0;
+                            const myId = state['features/base/participants']?.local?.id;
 
                             if (msgs && msgs.length > lastCount) {
                                 for (let i = lastCount; i < msgs.length; i++) {
-                                    const { timestamp = Date.now(), message } = msgs[i];
-                                    if (timestamp >= joinTime && message?.startsWith('/')) {
-                                        window.onCommandReceived(message);
+                                    const msg = msgs[i];
+                                    const isMe = msg.isLocal || (myId && msg.senderId === myId);
+
+                                    if (!isMe && (msg.timestamp || Date.now()) >= joinTime && msg.message?.startsWith('/')) {
+                                        window.onCommandReceived(msg.message);
                                     }
                                 }
                                 lastCount = msgs.length;
@@ -215,8 +220,15 @@ async function launchJitsiBrowser({
 
         await joinPromise;
     } catch (err) {
+        isClosing = true;
         await browser.close().catch(() => {});
-        throw err;
+
+        const cleanMsg = (err.message || String(err || 'Connection failed'))
+            .split('\n')[0]
+            .replace(/\s+at\s+https?:\/\/.+$/, '')
+            .trim();
+
+        throw new Error(cleanMsg);
     }
 
     return { browser, page };

@@ -33,7 +33,6 @@ function pipeAudioStream(url, res, req) {
         closed = true;
         log.debug('AUDIO', 'Stream closed');
 
-        // Моментально освобождаем буферы потоков в памяти
         [yt.stdout, yt.stderr, ffmpeg.stdin, ffmpeg.stdout, ffmpeg.stderr].forEach(s => s?.destroy());
         killProcessGroup(yt);
         killProcessGroup(ffmpeg);
@@ -46,7 +45,6 @@ function pipeAudioStream(url, res, req) {
         cleanup();
     };
 
-    // Глушим EPIPE при обрыве каналов между процессами
     [yt.stdout, ffmpeg.stdin, ffmpeg.stdout].forEach(s => s?.on('error', () => {}));
     yt.stdout.pipe(ffmpeg.stdin);
 
@@ -55,8 +53,12 @@ function pipeAudioStream(url, res, req) {
         if (msg && !msg.includes('WARNING')) log.debug('YTDLP', msg);
     });
 
-    // Защита от сбоя спавна FFmpeg
     ffmpeg.on('error', err => fail('FFMPEG', `Process error: ${err.message}`));
+    ffmpeg.on('close', code => {
+        if (code !== 0 && code !== null && !closed) {
+            fail('FFMPEG', `Process exited with code ${code}`);
+        }
+    });
     ffmpeg.stderr.on('data', d => {
         const msg = d.toString();
         if (msg.includes('error') && !msg.includes('Connection reset by peer')) {

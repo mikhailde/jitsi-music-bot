@@ -3,10 +3,12 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
 const config = require('../../config');
 const t = require('../../config/i18n');
 const log = require('../../utils/logger');
-const { startJitsiBot, leaveJitsiBot, getBotStatus } = require('../jitsi');
+const { startJitsiBot, leaveJitsiBot, getBotStatus, setDisconnectHandler } = require('../jitsi');
 
 const NO_PREVIEW = { link_preview_options: { is_disabled: true } };
 const LOOP_MAP = { track: 'word_loop_1', queue: 'word_loop_q' };
+
+let activeChatId = null;
 
 function parseTarget(input) {
     const raw = input.trim();
@@ -27,7 +29,7 @@ function createTelegramBot() {
     const client = config.proxy ? { baseFetchConfig: { agent: new SocksProxyAgent(config.proxy) } } : undefined;
     const bot = new Bot(config.telegramToken, { client });
 
-    bot.catch(err => log.error('TG', 'Telegram bot error:', err.error || err.message));
+    bot.catch(err => log.error('TG', 'Bot error:', err.error || err.message));
 
     bot.use(async (ctx, next) => {
         if (!ctx.from) return;
@@ -58,6 +60,8 @@ function createTelegramBot() {
 
         try {
             const ok = await startJitsiBot(room, domain);
+            if (ok) activeChatId = ctx.chat.id;
+
             const msg = ok ? t('tg_joined', { url: `https://${domain}/${room}` }) : t('tg_busy');
             return ctx.reply(msg, NO_PREVIEW);
         } catch (e) {
@@ -85,8 +89,18 @@ function createTelegramBot() {
         if (!s.isConnected) return ctx.reply(t('tg_status_free'));
 
         const user = ctx.from.username ? `@${ctx.from.username}` : `ID:${ctx.from.id}`;
-        await leaveJitsiBot(`Telegram /leave (${user})`);
-        return ctx.reply(t('tg_left'));
+        const reason = t('reason_tg_leave', { user });
+        activeChatId = null;
+
+        await leaveJitsiBot(reason);
+        return ctx.reply(t('tg_left', { reason }));
+    });
+
+    setDisconnectHandler(async ({ reason }) => {
+        if (!activeChatId) return;
+        const chatId = activeChatId;
+        activeChatId = null;
+        await bot.api.sendMessage(chatId, t('tg_left', { reason }), NO_PREVIEW).catch(() => {});
     });
 
     return bot;

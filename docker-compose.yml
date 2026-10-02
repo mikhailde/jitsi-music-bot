@@ -4,10 +4,9 @@ services:
     container_name: jitsi-music-bot
     restart: unless-stopped
     init: true
-    shm_size: '256m'
+    shm_size: '512m'
     stop_grace_period: 10s
     env_file: .env
-    network_mode: host
     deploy:
       resources:
         limits:

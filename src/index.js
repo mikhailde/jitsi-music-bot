@@ -1,4 +1,5 @@
 const config = require('./config');
+const t = require('./config/i18n');
 const { startAudioServer } = require('./audio');
 const { leaveJitsiBot, createTelegramBot } = require('./platforms');
 const log = require('./utils/logger');
@@ -20,7 +21,7 @@ process.on('uncaughtException', err => log.error('SYSTEM', 'Uncaught Exception:'
         log.warn('SYSTEM', `Service shutdown (${signal}): leaving conference...`);
         const timer = setTimeout(() => process.exit(0), config.shutdownTimeoutSec * 1000);
 
-        await leaveJitsiBot(`Process termination (${signal})`).catch(() => {});
+        await leaveJitsiBot(t('reason_process_term', { signal })).catch(() => {});
         await bot.stop().catch(() => {});
         clearTimeout(timer);
         process.exit(0);

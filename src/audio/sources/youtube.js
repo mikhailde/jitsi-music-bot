@@ -10,12 +10,12 @@ const URL_REGEX = /^(https?:\/\/|(www\.)?(youtube\.com|youtu\.be))/i;
 
 async function updateYtDlp() {
     try {
-        log.info('AUDIO', 'Updating yt-dlp core...');
+        log.info('YTDLP', 'Updating core binary...');
         await execFileAsync(YT_BIN, ['-U']);
-        log.info('AUDIO', 'yt-dlp core updated successfully');
+        log.info('YTDLP', 'Core binary updated successfully');
     } catch (err) {
-        log.warn('AUDIO', 'Failed to update yt-dlp (using current version)');
-        log.debug('AUDIO', 'Update error details:', err.message);
+        log.warn('YTDLP', 'Failed to update binary (using current version)');
+        log.debug('YTDLP', 'Update error details:', err.message);
     }
 }
 

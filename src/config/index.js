@@ -10,8 +10,8 @@ const requiredKeys = [
     'PORT', 'TELEGRAM_TOKEN', 'PROXY_URL', 'DEBUG_MODE', 'LANGUAGE',
     'DEFAULT_VOLUME', 'AUDIO_BITRATE', 'OPUS_BITRATE', 'HISTORY_LIMIT',
     'QUEUE_PAGE_SIZE', 'RADIO_ITEMS_LIMIT', 'MAX_PLAYLIST_ITEMS',
-    'JITSI_DOMAIN', 'BOT_NAME', 'BOT_AVATAR', 'AUDIO_ONLY', 'P2P_ENABLED',
-    'AFK_TIMEOUT_SEC', 'AFK_CHECK_INTERVAL_SEC', 'CONNECT_TIMEOUT_SEC',
+    'JITSI_DOMAIN', 'BOT_NAME', 'BOT_AVATAR',
+    'IDLE_TIMEOUT_SEC', 'IDLE_CHECK_INTERVAL_SEC', 'CONNECT_TIMEOUT_SEC',
     'RECONNECT_TIMEOUT_SEC', 'SHUTDOWN_TIMEOUT_SEC', 'HEADLESS_MODE',
     'TELEGRAM_ADMIN_IDS'
 ];
@@ -55,11 +55,9 @@ const config = {
     jitsiDomain: getStr('JITSI_DOMAIN'),
     botName: getStr('BOT_NAME'),
     avatarUrl: getStr('BOT_AVATAR') || null,
-    audioOnly: getBool('AUDIO_ONLY'),
-    p2pEnabled: getBool('P2P_ENABLED'),
 
-    afkTimeoutSec: getNum('AFK_TIMEOUT_SEC'),
-    afkCheckIntervalSec: getNum('AFK_CHECK_INTERVAL_SEC'),
+    idleTimeoutSec: getNum('IDLE_TIMEOUT_SEC'),
+    idleCheckIntervalSec: getNum('IDLE_CHECK_INTERVAL_SEC'),
     connectTimeoutSec: getNum('CONNECT_TIMEOUT_SEC', 5),
     reconnectTimeoutSec: getNum('RECONNECT_TIMEOUT_SEC'),
     shutdownTimeoutSec: getNum('SHUTDOWN_TIMEOUT_SEC'),
@@ -74,7 +72,7 @@ const config = {
 
 config._jitsiHash = [
     'config.prejoinConfig.enabled=false',
-    `config.startAudioOnly=${config.audioOnly}`,
+    'config.startAudioOnly=true',
     'config.startWithVideoMuted=true',
     'config.startWithAudioMuted=false',
     `userInfo.displayName="${encodeURIComponent(config.botName)}"`,
@@ -84,7 +82,7 @@ config._jitsiHash = [
     'config.enableNoisyMicDetection=false',
     'config.disableAudioLevels=true',
     'config.gravatar.disabled=true',
-    `config.p2p.enabled=${config.p2pEnabled}`
+    'config.p2p.enabled=false'
 ].join('&');
 
 module.exports = config;

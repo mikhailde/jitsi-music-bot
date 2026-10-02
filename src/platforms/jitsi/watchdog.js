@@ -2,20 +2,20 @@ const config = require('../../config');
 const log = require('../../utils/logger');
 const t = require('../../config/i18n');
 
-class AfkWatchdog {
+class IdleWatchdog {
     constructor({ getPage, onTimeout, sendChat }) {
         this.getPage = getPage;
         this.onTimeout = onTimeout;
         this.sendChat = sendChat;
-        this.afkSeconds = 0;
+        this.idleSeconds = 0;
         this.timer = null;
         this.isChecking = false;
     }
 
     start() {
         this.stop();
-        const step = config.afkCheckIntervalSec;
-        const limit = config.afkTimeoutSec;
+        const step = config.idleCheckIntervalSec;
+        const limit = config.idleTimeoutSec;
 
         this.timer = setInterval(async () => {
             if (this.isChecking) return;
@@ -33,37 +33,37 @@ class AfkWatchdog {
                 if (count === null) return;
 
                 if (count <= 1) {
-                    if (this.afkSeconds === 0) {
-                        log.info('AFK', `Room is empty, countdown started (${limit}s timeout)`);
+                    if (this.idleSeconds === 0) {
+                        log.info('IDLE', `Room is empty, countdown started (${limit}s timeout)`);
                     }
 
-                    this.afkSeconds += step;
-                    log.debug('AFK', `Empty room: ${this.afkSeconds}/${limit}s`);
+                    this.idleSeconds += step;
+                    log.debug('IDLE', `Empty room: ${this.idleSeconds}/${limit}s`);
 
-                    if (this.afkSeconds >= limit) {
+                    if (this.idleSeconds >= limit) {
                         this.stop();
-                        log.info('AFK', `AFK limit reached (${limit}s), exiting`);
-                        await this.sendChat?.(t('j_afk', { sec: limit })).catch(() => {});
+                        log.info('IDLE', `IDLE limit reached (${limit}s), exiting`);
+                        await this.sendChat?.(t('j_idle', { sec: limit })).catch(() => {});
                         return await this.onTimeout();
                     }
-                } else if (this.afkSeconds > 0) {
-                    log.info('AFK', 'Participants detected, AFK timer reset');
-                    this.afkSeconds = 0;
+                } else if (this.idleSeconds > 0) {
+                    log.info('IDLE', 'Participants detected, IDLE timer reset');
+                    this.idleSeconds = 0;
                 }
             } catch (err) {
-                log.debug('AFK', 'Check poll error:', err.message);
+                log.debug('IDLE', 'Check poll error:', err.message);
             } finally {
                 this.isChecking = false;
             }
-        }, config.afkCheckIntervalSec * 1000);
+        }, config.idleCheckIntervalSec * 1000);
     }
 
     stop() {
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
-        this.afkSeconds = 0;
+        this.idleSeconds = 0;
         this.isChecking = false;
     }
 }
 
-module.exports = AfkWatchdog;
+module.exports = IdleWatchdog;
