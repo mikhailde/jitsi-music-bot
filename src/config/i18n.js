@@ -87,6 +87,7 @@ const RAW = {
     j_queue_more: ['\n\n...и еще в очереди: {count}.', '\n\n...and {count} more in queue.'],
     j_hist_empty: ['История пуста.', 'Playback history is empty.'],
     j_hist_head: ['Сыгранные треки:\n\n', 'Played tracks:\n\n'],
+    j_hist_more: ['\n\n...и еще в истории: {count}.', '\n\n...and {count} more in history.'],
     j_shuffle_err: ['Недостаточно треков для перемешивания.', 'Not enough tracks to shuffle.'],
     j_shuffle_ok: ['Очередь перемешана.', 'Queue shuffled.'],
     j_move_ok: ['Трек перемещен на позицию #{pos}.', 'Track moved to #{pos}.'],

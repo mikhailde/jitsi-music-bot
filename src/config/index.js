@@ -9,7 +9,7 @@ const fail = (msg) => {
 const requiredKeys = [
     'PORT', 'TELEGRAM_TOKEN', 'PROXY_URL', 'DEBUG_MODE', 'LANGUAGE',
     'DEFAULT_VOLUME', 'AUDIO_BITRATE', 'OPUS_BITRATE', 'HISTORY_LIMIT',
-    'QUEUE_PAGE_SIZE', 'RADIO_ITEMS_LIMIT', 'MAX_PLAYLIST_ITEMS',
+    'HISTORY_PAGE_SIZE', 'QUEUE_PAGE_SIZE', 'RADIO_ITEMS_LIMIT', 'MAX_PLAYLIST_ITEMS',
     'JITSI_DOMAIN', 'BOT_NAME', 'BOT_AVATAR',
     'IDLE_TIMEOUT_SEC', 'CONNECT_TIMEOUT_SEC',
     'RECONNECT_TIMEOUT_SEC', 'SHUTDOWN_TIMEOUT_SEC', 'HEADLESS_MODE',
@@ -48,6 +48,7 @@ const config = {
     audioBitrate: getStr('AUDIO_BITRATE'),
     opusBitrate: getNum('OPUS_BITRATE'),
     historyLimit: getNum('HISTORY_LIMIT', 1),
+    historyPageSize: getNum('HISTORY_PAGE_SIZE', 1),
     queuePageSize: getNum('QUEUE_PAGE_SIZE', 1),
     radioItemsLimit: getNum('RADIO_ITEMS_LIMIT', 1),
     maxPlaylistItems: getNum('MAX_PLAYLIST_ITEMS', 1),

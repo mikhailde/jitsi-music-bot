@@ -162,7 +162,8 @@ All parameters must be defined in your `.env` file (empty values are permitted w
 | **Audio** | `DEFAULT_VOLUME` | Initial volume percentage (0–100) | `50` |
 | | `AUDIO_BITRATE` | FFmpeg output stream bitrate | `192k` |
 | | `OPUS_BITRATE` | Maximum Opus average bitrate | `510000` |
-| | `HISTORY_LIMIT` | Track history capacity | `5` |
+| | `HISTORY_LIMIT` | Track history capacity | `20` |
+| | `HISTORY_PAGE_SIZE` | Tracks displayed per `/history` call | `5` |
 | | `QUEUE_PAGE_SIZE` | Tracks displayed per `/queue` call | `5` |
 | | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `10` |
 | | `MAX_PLAYLIST_ITEMS`| Maximum tracks loaded from a single playlist | `50` |
