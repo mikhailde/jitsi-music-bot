@@ -62,20 +62,22 @@ async function launchJitsiBrowser({
             botAudioElement: audio
         });
 
-        const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-        navigator.mediaDevices.getUserMedia = async (c) => {
-            if (!c?.audio) return orig(c);
-            const stream = dest.stream;
-            stream.getAudioTracks().forEach(track => {
-                track.applyConstraints?.({
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false,
-                    channelCount: 2
-                }).catch(() => {});
-            });
-            return stream;
-        };
+        if (navigator.mediaDevices?.getUserMedia) {
+            const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+            navigator.mediaDevices.getUserMedia = async (c) => {
+                if (!c?.audio) return orig(c);
+                const stream = dest.stream;
+                stream.getAudioTracks().forEach(track => {
+                    track.applyConstraints?.({
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        channelCount: 2
+                    }).catch(() => {});
+                });
+                return stream;
+            };
+        }
     });
 
     const handlers = {
@@ -94,6 +96,7 @@ async function launchJitsiBrowser({
     await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
         let elapsed = 0;
         let lastConf = null;
+        let joined = false;
 
         const attachConference = (conf) => {
             if (!conf || conf === lastConf) return;
@@ -108,13 +111,6 @@ async function launchJitsiBrowser({
                 conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
                 conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
                 conf.on('conference.connectionRestored', () => window.onConnectionRestored());
-                conf.on('conference.trackMuteChanged', track => {
-                    try {
-                        if (track?.isLocal?.() && track?.getType?.() === 'audio' && track?.isMuted?.()) {
-                            window.onLocalAudioMuted();
-                        }
-                    } catch {}
-                });
             } catch {}
         };
 
@@ -124,34 +120,49 @@ async function launchJitsiBrowser({
 
             const store = window.APP?.store;
             if (store) {
-                clearInterval(check);
-                let lastCount = store.getState()['features/chat']?.messages?.length || 0;
-                let lastAudioMuted = false;
+                const confState = store.getState()['features/base/conference'];
+                const conf = confState?.conference;
+                attachConference(conf);
 
-                attachConference(store.getState()['features/base/conference']?.conference);
+                // Мгновенный выход, если Jitsi вернула критическую ошибку (Lobby, пароль, etc.)
+                if (!joined && confState?.error) {
+                    clearInterval(check);
+                    return window.onConferenceFailed(String(confState.error?.name || confState.error));
+                }
 
-                store.subscribe(() => {
-                    const state = store.getState();
-                    attachConference(state['features/base/conference']?.conference);
+                // Успешный вход в конференцию
+                if (!joined && conf?.isJoined?.()) {
+                    joined = true;
+                    clearInterval(check);
 
-                    const isMuted = Boolean(state['features/base/media']?.audio?.muted);
-                    if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
-                    lastAudioMuted = isMuted;
+                    let lastCount = store.getState()['features/chat']?.messages?.length || 0;
+                    let lastAudioMuted = false;
 
-                    const msgs = state['features/chat']?.messages;
-                    if (msgs && msgs.length > lastCount) {
-                        for (let i = lastCount; i < msgs.length; i++) {
-                            const { timestamp = Date.now(), message } = msgs[i];
-                            if (timestamp >= joinTime && message?.startsWith('/')) {
-                                window.onCommandReceived(message);
+                    store.subscribe(() => {
+                        const state = store.getState();
+                        attachConference(state['features/base/conference']?.conference);
+
+                        const isMuted = Boolean(state['features/base/media']?.audio?.muted);
+                        if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
+                        lastAudioMuted = isMuted;
+
+                        const msgs = state['features/chat']?.messages;
+                        if (msgs && msgs.length > lastCount) {
+                            for (let i = lastCount; i < msgs.length; i++) {
+                                const { timestamp = Date.now(), message } = msgs[i];
+                                if (timestamp >= joinTime && message?.startsWith('/')) {
+                                    window.onCommandReceived(message);
+                                }
                             }
+                            lastCount = msgs.length;
                         }
-                        lastCount = msgs.length;
-                    }
-                });
-            } else if (elapsed >= connectTimeoutMs) {
+                    });
+                }
+            }
+
+            if (!joined && elapsed >= connectTimeoutMs) {
                 clearInterval(check);
-                window.onConferenceFailed(`Jitsi initialization timeout (${connectTimeoutMs / 1000}s)`);
+                window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
             }
         }, 1000);
     }, {

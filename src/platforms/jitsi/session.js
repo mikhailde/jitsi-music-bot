@@ -89,10 +89,16 @@ class JitsiSession {
             onCrash: reason => this.destroy(`Crash: ${reason}`),
             onLocalAudioMuted: async () => {
                 if (this.isDestroyed || !this.state.isPlaying) return;
-                const isPaused = await this.bridge.eval(() => window.botAudioElement?.paused);
-                if (!isPaused) {
+                const wasMuted = await this.bridge.eval(() => {
+                    const a = window.botAudioElement;
+                    if (!a || a.paused) return false;
+                    a.pause();
+                    return true;
+                });
+
+                if (wasMuted) {
                     log.info('PLAYER', 'Muted by participant, pausing playback');
-                    await this.playerContext.pauseTrack();
+                    await this.bridge.sendChatMessage(t('j_pause'));
                 }
             },
             onCommandReceived: text => {
