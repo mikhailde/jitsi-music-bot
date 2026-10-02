@@ -44,7 +44,7 @@ const RAW = {
     reason_conn_failed: ['Ошибка конференции: {err}', 'Conference error: {err}'],
     reason_crash: ['Сбой браузера: {err}', 'Browser crash: {err}'],
     reason_init_failed: ['Сбой инициализации звонка', 'Conference initialization failed'],
-    reason_process_term: ['Перезапуск сервиса ({signal})', 'Service restart ({signal})'],
+    reason_process_term: ['Остановка сервиса ({signal})', 'Service shutdown ({signal})'],
     reason_tg_leave: ['Команда /leave в Telegram ({user})', 'Telegram /leave command ({user})'],
     reason_normal: ['Штатное отключение', 'Normal disconnect'],
 
