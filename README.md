@@ -167,7 +167,6 @@ All parameters must be defined in your `.env` file (empty values are permitted w
 | | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `10` |
 | | `MAX_PLAYLIST_ITEMS`| Maximum tracks loaded from a single playlist | `50` |
 | **Timeouts** | `IDLE_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
-| | `IDLE_CHECK_INTERVAL_SEC` | Room participant poll interval in seconds | `15` |
 | | `CONNECT_TIMEOUT_SEC` | Conference join & ready timeout in seconds | `30` |
 | | `RECONNECT_TIMEOUT_SEC` | Wait for connection recovery before leave | `15` |
 | | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds | `3` |

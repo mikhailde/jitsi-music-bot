@@ -3,66 +3,41 @@ const log = require('../../utils/logger');
 const t = require('../../config/i18n');
 
 class IdleWatchdog {
-    constructor({ getPage, onTimeout, sendChat }) {
-        this.getPage = getPage;
+    constructor({ onTimeout, sendChat }) {
         this.onTimeout = onTimeout;
         this.sendChat = sendChat;
-        this.idleSeconds = 0;
         this.timer = null;
-        this.isChecking = false;
     }
 
-    start() {
-        this.stop();
-        const step = config.idleCheckIntervalSec;
-        const limit = config.idleTimeoutSec;
+    onRoomEmpty() {
+        this.cancel();
+        const timeoutSec = config.idleTimeoutSec;
+        log.info('IDLE', `Room is empty, starting disconnect timer (${timeoutSec}s)`);
 
-        this.timer = setInterval(async () => {
-            if (this.isChecking) return;
-            this.isChecking = true;
+        this.timer = setTimeout(async () => {
+            this.timer = null;
+            log.info('IDLE', `IDLE timeout reached (${timeoutSec}s), exiting`);
+            await this.sendChat?.(t('j_idle', { sec: timeoutSec })).catch(() => {});
+            await this.onTimeout();
+        }, timeoutSec * 1000);
+    }
 
-            try {
-                const p = this.getPage();
-                if (!p || p.isClosed()) return this.stop();
+    onRoomActive() {
+        if (this.timer) {
+            log.info('IDLE', 'Participant joined, IDLE timer cancelled');
+            this.cancel();
+        }
+    }
 
-                const count = await p.evaluate(() => {
-                    const n = window.APP?.conference?.membersCount;
-                    return Number.isInteger(n) ? n : null;
-                });
-
-                if (count === null) return;
-
-                if (count <= 1) {
-                    if (this.idleSeconds === 0) {
-                        log.info('IDLE', `Room is empty, countdown started (${limit}s timeout)`);
-                    }
-
-                    this.idleSeconds += step;
-                    log.debug('IDLE', `Empty room: ${this.idleSeconds}/${limit}s`);
-
-                    if (this.idleSeconds >= limit) {
-                        this.stop();
-                        log.info('IDLE', `IDLE limit reached (${limit}s), exiting`);
-                        await this.sendChat?.(t('j_idle', { sec: limit })).catch(() => {});
-                        return await this.onTimeout();
-                    }
-                } else if (this.idleSeconds > 0) {
-                    log.info('IDLE', 'Participants detected, IDLE timer reset');
-                    this.idleSeconds = 0;
-                }
-            } catch (err) {
-                log.debug('IDLE', 'Check poll error:', err.message);
-            } finally {
-                this.isChecking = false;
-            }
-        }, config.idleCheckIntervalSec * 1000);
+    cancel() {
+        if (this.timer) {
+            clearTimeout(this.timer);
+            this.timer = null;
+        }
     }
 
     stop() {
-        if (this.timer) clearInterval(this.timer);
-        this.timer = null;
-        this.idleSeconds = 0;
-        this.isChecking = false;
+        this.cancel();
     }
 }
 

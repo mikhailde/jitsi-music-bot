@@ -11,7 +11,7 @@ const requiredKeys = [
     'DEFAULT_VOLUME', 'AUDIO_BITRATE', 'OPUS_BITRATE', 'HISTORY_LIMIT',
     'QUEUE_PAGE_SIZE', 'RADIO_ITEMS_LIMIT', 'MAX_PLAYLIST_ITEMS',
     'JITSI_DOMAIN', 'BOT_NAME', 'BOT_AVATAR',
-    'IDLE_TIMEOUT_SEC', 'IDLE_CHECK_INTERVAL_SEC', 'CONNECT_TIMEOUT_SEC',
+    'IDLE_TIMEOUT_SEC', 'CONNECT_TIMEOUT_SEC',
     'RECONNECT_TIMEOUT_SEC', 'SHUTDOWN_TIMEOUT_SEC', 'HEADLESS_MODE',
     'TELEGRAM_ADMIN_IDS'
 ];
@@ -57,7 +57,6 @@ const config = {
     avatarUrl: getStr('BOT_AVATAR') || null,
 
     idleTimeoutSec: getNum('IDLE_TIMEOUT_SEC'),
-    idleCheckIntervalSec: getNum('IDLE_CHECK_INTERVAL_SEC'),
     connectTimeoutSec: getNum('CONNECT_TIMEOUT_SEC', 5),
     reconnectTimeoutSec: getNum('RECONNECT_TIMEOUT_SEC'),
     shutdownTimeoutSec: getNum('SHUTDOWN_TIMEOUT_SEC'),

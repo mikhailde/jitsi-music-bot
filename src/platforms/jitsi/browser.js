@@ -15,7 +15,9 @@ async function launchJitsiBrowser({
     onConnectionInterrupted,
     onConnectionRestored,
     onCrash,
-    onLocalAudioMuted
+    onLocalAudioMuted,
+    onRoomEmpty,
+    onRoomActive
 }) {
     const browser = await chromium.launch({
         headless: config.headless,
@@ -113,111 +115,140 @@ async function launchJitsiBrowser({
         },
         onConnectionInterrupted,
         onConnectionRestored,
-        onLocalAudioMuted
+        onLocalAudioMuted,
+        onRoomEmpty,
+        onRoomActive
     };
 
     await Promise.all(
         Object.entries(handlers).map(([name, fn]) => page.exposeFunction(name, fn || noop))
     );
 
-    try {
-        const response = await page.goto(config.getMeetUrl(roomName, domain), {
-            waitUntil: 'domcontentloaded',
-            timeout: config.connectTimeoutSec * 1000
-        });
+    const response = await page.goto(config.getMeetUrl(roomName, domain), {
+        waitUntil: 'domcontentloaded',
+        timeout: config.connectTimeoutSec * 1000
+    });
 
-        if (response && !response.ok()) {
-            throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
-        }
+    if (response && !response.ok()) {
+        await browser.close().catch(() => {});
+        throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
+    }
 
-        const isJitsi = await page.evaluate(() => Boolean(window.config?.hosts));
-        if (!isJitsi) {
-            throw new Error('Not a valid Jitsi Meet instance');
-        }
+    const isJitsi = await page.evaluate(() => Boolean(window.config?.hosts));
+    if (!isJitsi) {
+        await browser.close().catch(() => {});
+        throw new Error('Not a valid Jitsi Meet instance');
+    }
 
-        await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
-            let elapsed = 0;
-            let lastConf = null;
-            let joined = false;
+    await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
+        let elapsed = 0;
+        let lastConf = null;
+        let joined = false;
+        let lastRoomEmpty = null;
 
-            const attachConference = (conf) => {
-                if (!conf || conf === lastConf) return;
-                lastConf = conf;
+        const updateRoomActivity = (conf) => {
+            if (!conf) return;
+            const participants = conf.getParticipants?.();
+            const count = Array.isArray(participants)
+                ? participants.length
+                : (typeof conf.membersCount === 'number' ? Math.max(0, conf.membersCount - 1) : null);
 
-                try {
-                    conf.on('conference.kicked', () => window.onKicked());
-                    conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
-                    conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
-                    conf.on('conference.connectionRestored', () => window.onConnectionRestored());
-                } catch {}
-            };
+            if (count === null) return;
 
-            const check = setInterval(() => {
-                elapsed += 1000;
-                document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
+            const isEmpty = count === 0;
+            if (isEmpty === lastRoomEmpty) return;
+            lastRoomEmpty = isEmpty;
 
-                const store = window.APP?.store;
+            if (isEmpty) {
+                window.onRoomEmpty();
+            } else {
+                window.onRoomActive();
+            }
+        };
 
-                if (store) {
-                    const confState = store.getState()['features/base/conference'];
-                    const conf = confState?.conference;
-                    attachConference(conf);
+        const attachConference = (conf) => {
+            if (!conf || conf === lastConf) return;
+            lastConf = conf;
 
-                    if (!joined && confState?.error) {
-                        clearInterval(check);
-                        return window.onConferenceFailed(String(confState.error?.name || confState.error));
-                    }
+            if (avatarUrl) {
+                window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
+            }
 
-                    if (!joined && conf?.isJoined?.()) {
-                        joined = true;
-                        clearInterval(check);
+            try {
+                conf.on('conference.kicked', () => window.onKicked());
+                conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
+                conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
+                conf.on('conference.connectionRestored', () => window.onConnectionRestored());
+                conf.on('conference.userJoined', () => updateRoomActivity(conf));
+                conf.on('conference.userLeft', () => updateRoomActivity(conf));
+            } catch {}
+        };
 
-                        if (avatarUrl) {
-                            window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
-                        }
+        const check = setInterval(() => {
+            elapsed += 1000;
+            document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
 
-                        window.onConferenceJoined();
+            const store = window.APP?.store;
 
-                        let lastCount = store.getState()['features/chat']?.messages?.length || 0;
-                        let lastAudioMuted = false;
+            if (store) {
+                const confState = store.getState()['features/base/conference'];
+                const conf = confState?.conference;
+                attachConference(conf);
 
-                        store.subscribe(() => {
-                            const state = store.getState();
-                            attachConference(state['features/base/conference']?.conference);
-
-                            const isMuted = Boolean(state['features/base/media']?.audio?.muted);
-                            if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
-                            lastAudioMuted = isMuted;
-
-                            const msgs = state['features/chat']?.messages;
-                            const myId = state['features/base/participants']?.local?.id;
-
-                            if (msgs && msgs.length > lastCount) {
-                                for (let i = lastCount; i < msgs.length; i++) {
-                                    const msg = msgs[i];
-                                    const isMe = msg.isLocal || (myId && msg.senderId === myId);
-
-                                    if (!isMe && (msg.timestamp || Date.now()) >= joinTime && msg.message?.startsWith('/')) {
-                                        window.onCommandReceived(msg.message);
-                                    }
-                                }
-                                lastCount = msgs.length;
-                            }
-                        });
-                    }
-                }
-
-                if (!joined && elapsed >= connectTimeoutMs) {
+                if (!joined && confState?.error) {
                     clearInterval(check);
-                    window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
+                    return window.onConferenceFailed(String(confState.error?.name || confState.error));
                 }
-            }, 1000);
-        }, {
-            joinTime: Date.now(),
-            avatarUrl: config.avatarUrl,
-            connectTimeoutMs: config.connectTimeoutSec * 1000
-        });
 
+                if (!joined && conf?.isJoined?.()) {
+                    joined = true;
+                    clearInterval(check);
+                    window.onConferenceJoined();
+                    updateRoomActivity(conf);
+
+                    let lastCount = store.getState()['features/chat']?.messages?.length || 0;
+                    let lastAudioMuted = false;
+
+                    store.subscribe(() => {
+                        const state = store.getState();
+                        const currentConf = state['features/base/conference']?.conference;
+                        attachConference(currentConf);
+                        updateRoomActivity(currentConf);
+
+                        const isMuted = Boolean(state['features/base/media']?.audio?.muted);
+                        if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
+                        lastAudioMuted = isMuted;
+
+                        const msgs = state['features/chat']?.messages;
+                        const myId = state['features/base/participants']?.local?.id;
+
+                        if (msgs && msgs.length > lastCount) {
+                            for (let i = lastCount; i < msgs.length; i++) {
+                                const msg = msgs[i];
+                                const isMe = msg.isLocal || (myId && msg.senderId === myId);
+
+                                if (!isMe && (msg.timestamp || Date.now()) >= joinTime && msg.message?.startsWith('/')) {
+                                    window.onCommandReceived(msg.message);
+                                }
+                            }
+                            lastCount = msgs.length;
+                        }
+                    });
+                }
+            }
+
+            if (!joined && elapsed >= connectTimeoutMs) {
+                clearInterval(check);
+                window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
+            }
+        }, 1000);
+    }, {
+        joinTime: Date.now(),
+        avatarUrl: config.avatarUrl,
+        connectTimeoutMs: config.connectTimeoutSec * 1000
+    });
+
+    try {
         await joinPromise;
     } catch (err) {
         isClosing = true;

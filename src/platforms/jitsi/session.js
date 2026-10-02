@@ -68,6 +68,11 @@ class JitsiSession {
     async init() {
         log.debug('JITSI', `Connecting to room "${this.roomName}" (${this.domain})...`);
 
+        this.watchdog = new IdleWatchdog({
+            sendChat: m => this.bridge.sendChatMessage(m),
+            onTimeout: () => this.destroy(t('reason_idle'))
+        });
+
         const session = await launchJitsiBrowser({
             roomName: this.roomName,
             domain: this.domain,
@@ -109,6 +114,25 @@ class JitsiSession {
                     await this.bridge.sendChatMessage(t('j_pause'));
                 }
             },
+            onRoomEmpty: async () => {
+                if (this.isDestroyed) return;
+                const wasPlaying = await this.bridge.eval(() => {
+                    const a = window.botAudioElement;
+                    if (!a || a.paused) return false;
+                    a.pause();
+                    return true;
+                });
+
+                if (wasPlaying) {
+                    log.info('PLAYER', 'Room is empty, pausing playback');
+                    await this.bridge.sendChatMessage(t('j_pause'));
+                }
+                this.watchdog?.onRoomEmpty();
+            },
+            onRoomActive: () => {
+                if (this.isDestroyed) return;
+                this.watchdog?.onRoomActive();
+            },
             onCommandReceived: text => this.queueAction(async () => {
                 await dispatch(text, {
                     state: this.state,
@@ -128,13 +152,6 @@ class JitsiSession {
         this.browser = session.browser;
         this.page = session.page;
         log.info('JITSI', `Connected to room "${this.roomName}" (${this.domain})`);
-
-        this.watchdog = new IdleWatchdog({
-            getPage: () => this.page,
-            sendChat: m => this.bridge.sendChatMessage(m),
-            onTimeout: () => this.destroy(t('reason_idle'))
-        });
-        this.watchdog.start();
     }
 
     async handleTrackEnd(isSkip = false) {
