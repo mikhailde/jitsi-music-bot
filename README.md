@@ -84,7 +84,6 @@ All parameters are **mandatory** (strict fail-fast validation):
 | | `BOT_AVATAR` | Image URL for bot's avatar | `https://example.com/avatar.png` |
 | | `AUDIO_ONLY` | Block incoming participant video (cuts CPU) | `true` |
 | | `P2P_ENABLED` | Force JVB media bridge routing | `false` |
-| | `PREJOIN_ENABLED` | Bypass prejoin waiting screen | `false` |
 | **Audio** | `DEFAULT_VOLUME` | Initial volume percentage (0–100) | `50` |
 | | `AUDIO_BITRATE` | FFmpeg output stream bitrate | `192k` |
 | | `OPUS_BITRATE` | Maximum Opus average bitrate | `510000` |
@@ -94,6 +93,8 @@ All parameters are **mandatory** (strict fail-fast validation):
 | | `MAX_PLAYLIST_ITEMS`| Maximum tracks loaded from a single playlist | `50` |
 | **Timeouts** | `AFK_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
 | | `AFK_CHECK_INTERVAL_SEC` | Room participant poll interval in seconds | `15` |
+| | `CONNECT_TIMEOUT_SEC` | Conference join & ready timeout in seconds | `30` |
+| | `RECONNECT_TIMEOUT_SEC` | Wait for connection recovery before leave | `15` |
 | | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds | `3` |
 | **Browser** | `HEADLESS_MODE` | Run Playwright Chromium in headless mode | `true` |
 

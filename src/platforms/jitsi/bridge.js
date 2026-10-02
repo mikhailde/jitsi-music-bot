@@ -6,9 +6,9 @@ class JitsiPlayerBridge {
         this.getPage = getPage;
     }
 
-    eval(fn, arg) {
+    async eval(fn, arg) {
         const p = this.getPage();
-        return p ? p.evaluate(fn, arg) : null;
+        return p && !p.isClosed() ? p.evaluate(fn, arg).catch(() => null) : null;
     }
 
     sendChatMessage(text) {
@@ -21,42 +21,36 @@ class JitsiPlayerBridge {
 
     playTrack(ytUrl, vol) {
         return this.eval(async ({ ytUrl, vol, port }) => {
-            if (window.botAudioContext?.state === 'suspended') {
-                await window.botAudioContext.resume();
-            }
-
+            const ctx = window.botAudioContext;
+            if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
             try {
-                if (window.APP?.conference?.isLocalAudioMuted()) {
-                    window.APP.conference.muteAudio(false);
-                }
+                if (window.APP?.conference?.isLocalAudioMuted?.()) window.APP.conference.muteAudio(false);
             } catch {}
 
-            const audio = window.botAudioElement;
-            if (!audio) return;
+            const a = window.botAudioElement;
+            if (!a) return;
 
             window.isManuallyStopped = true;
-            audio.onended = audio.onerror = null;
-            audio.pause();
-            audio.removeAttribute('src');
+            a.onended = a.onerror = null;
+            a.pause();
+            a.removeAttribute('src');
             window.isManuallyStopped = false;
 
-            if (window.botGainNode) {
-                window.botGainNode.gain.value = vol;
-            }
+            if (window.botGainNode) window.botGainNode.gain.value = vol;
 
             let done = false;
             const end = (fn, arg) => {
                 if (done || window.isManuallyStopped) return;
                 done = true;
-                fn(arg);
+                if (typeof fn === 'function') fn(arg);
             };
 
-            audio.onerror = () => end(window.onTrackError, `Audio Error Code: ${audio.error?.code}`);
-            audio.onended = () => end(window.onTrackEnded);
+            a.onerror = () => end(window.onTrackError, `Audio Error Code: ${a.error?.code}`);
+            a.onended = () => end(window.onTrackEnded);
 
-            audio.src = `http://127.0.0.1:${port}/audio-stream?url=${encodeURIComponent(ytUrl)}&t=${Date.now()}`;
+            a.src = `http://127.0.0.1:${port}/audio-stream?url=${encodeURIComponent(ytUrl)}&t=${Date.now()}`;
             try {
-                await audio.play();
+                await a.play();
             } catch (e) {
                 if (e.name !== 'AbortError') end(window.onTrackError, `Play API Error: ${e.message}`);
             }
@@ -66,12 +60,11 @@ class JitsiPlayerBridge {
     stopTrack() {
         return this.eval(() => {
             const a = window.botAudioElement;
-            if (a) {
-                window.isManuallyStopped = true;
-                a.onended = a.onerror = null;
-                a.pause();
-                a.removeAttribute('src');
-            }
+            if (!a) return;
+            window.isManuallyStopped = true;
+            a.onended = a.onerror = null;
+            a.pause();
+            a.removeAttribute('src');
         });
     }
 
@@ -82,8 +75,12 @@ class JitsiPlayerBridge {
 
     async resumeTrack() {
         await this.eval(async () => {
-            if (window.botAudioContext?.state === 'suspended') await window.botAudioContext.resume();
-            await window.botAudioElement?.play();
+            const ctx = window.botAudioContext;
+            if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
+            try {
+                if (window.APP?.conference?.isLocalAudioMuted?.()) window.APP.conference.muteAudio(false);
+            } catch {}
+            await window.botAudioElement?.play().catch(() => {});
         });
         return this.sendChatMessage(t('j_resume'));
     }

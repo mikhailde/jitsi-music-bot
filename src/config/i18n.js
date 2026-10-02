@@ -1,7 +1,7 @@
 const config = require('./index');
 const idx = config.lang === 'ru' ? 0 : 1;
 
-const T = {
+const RAW = {
     tg_start: [
         'Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — состояние плеера и очередь\n/leave — отключить от звонка',
         'Jitsi Music Bot\n\nCommands:\n/join <room or URL> — connect to call\n/status — player state and queue\n/leave — disconnect from call'
@@ -55,6 +55,10 @@ const T = {
     j_radio_on: ['Радио: ВКЛЮЧЕНО (автоподбор треков)', 'Radio: ENABLED (autoplay)'],
     j_radio_off: ['Радио: ВЫКЛЮЧЕНО', 'Radio: DISABLED'],
     j_radio_wait: ['Радио: подбор следующего трека...', 'Radio: finding next track...'],
+    j_radio_exhausted: [
+        'Радио: рекомендации исчерпаны. Добавьте трек через /play.',
+        'Radio: recommendations exhausted. Add tracks using /play.'
+    ],
     j_loop_track: ['Повтор трека: ВКЛЮЧЕН', 'Track repeat: ENABLED'],
     j_loop_queue: ['Повтор очереди: ВКЛЮЧЕН', 'Queue repeat: ENABLED'],
     j_loop_off: ['Повтор: ВЫКЛЮЧЕН', 'Repeat: DISABLED'],
@@ -96,4 +100,12 @@ const T = {
     word_loop_off: ['Выключен', 'Off']
 };
 
-module.exports = (k, p = {}) => (T[k]?.[idx] || T[k]?.[1] || k).replace(/\{(\w+)\}/g, (_, v) => p[v] ?? `{${v}}`);
+const T = Object.create(null);
+for (const k in RAW) {
+    T[k] = RAW[k][idx] || RAW[k][1] || k;
+}
+
+module.exports = (k, p) => {
+    const s = T[k] || k;
+    return p ? s.replace(/\{(\w+)\}/g, (_, v) => p[v] ?? `{${v}}`) : s;
+};

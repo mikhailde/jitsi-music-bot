@@ -4,41 +4,26 @@ const config = require('../config');
 const log = require('../utils/logger');
 
 const killProcessGroup = (child) => {
-    if (!child || !child.pid) return;
-    try {
-        process.kill(-child.pid, 'SIGKILL');
-    } catch {
-        try {
-            child.kill('SIGKILL');
-        } catch {}
+    if (!child?.pid) return;
+    try { process.kill(-child.pid, 'SIGKILL'); } catch {
+        try { child.kill('SIGKILL'); } catch {}
     }
 };
 
 function pipeAudioStream(url, res, req) {
     log.info('AUDIO', `Stream started [${config.audioBitrate}]: ${url.slice(0, 60)}...`);
-    const args = {
+
+    const yt = ytDlp.exec(url, {
         output: '-',
         format: 'bestaudio/best',
-        quiet: true,
         noWarnings: true,
         jsRuntimes: 'deno',
         ...(config.proxy ? { proxy: config.proxy } : {})
-    };
+    }, { detached: true });
 
-    const yt = ytDlp.exec(url, args, { detached: true });
     const ffmpeg = spawn('ffmpeg', [
         '-i', 'pipe:0', '-c:a', 'libopus', '-b:a', config.audioBitrate, '-v', 'error', '-f', 'webm', 'pipe:1'
     ], { detached: true });
-
-    [yt.stdout, ffmpeg.stdin, ffmpeg.stdout].forEach(s => s?.on('error', () => {}));
-    yt.stdout.pipe(ffmpeg.stdin);
-
-    ffmpeg.stderr.on('data', d => {
-        const msg = d.toString();
-        if (msg.includes('error') && !msg.includes('Connection reset by peer')) {
-            log.error('FFMPEG', msg.trim());
-        }
-    });
 
     let closed = false;
     let headersSent = false;
@@ -47,11 +32,39 @@ function pipeAudioStream(url, res, req) {
         if (closed) return;
         closed = true;
         log.debug('AUDIO', 'Stream closed');
-        killProcessGroup(yt.child);
+
+        // Моментально освобождаем буферы потоков в памяти
+        [yt.stdout, yt.stderr, ffmpeg.stdin, ffmpeg.stdout, ffmpeg.stderr].forEach(s => s?.destroy());
+        killProcessGroup(yt);
         killProcessGroup(ffmpeg);
     };
 
-    ffmpeg.stdout.once('data', (chunk) => {
+    const fail = (prefix, msg) => {
+        if (closed) return;
+        if (msg) log.error(prefix, msg);
+        if (!headersSent && !res.headersSent) res.writeHead(502).end();
+        cleanup();
+    };
+
+    // Глушим EPIPE при обрыве каналов между процессами
+    [yt.stdout, ffmpeg.stdin, ffmpeg.stdout].forEach(s => s?.on('error', () => {}));
+    yt.stdout.pipe(ffmpeg.stdin);
+
+    yt.stderr?.on('data', d => {
+        const msg = d.toString().trim();
+        if (msg && !msg.includes('WARNING')) log.debug('YTDLP', msg);
+    });
+
+    // Защита от сбоя спавна FFmpeg
+    ffmpeg.on('error', err => fail('FFMPEG', `Process error: ${err.message}`));
+    ffmpeg.stderr.on('data', d => {
+        const msg = d.toString();
+        if (msg.includes('error') && !msg.includes('Connection reset by peer')) {
+            log.error('FFMPEG', msg.trim());
+        }
+    });
+
+    ffmpeg.stdout.once('data', chunk => {
         if (closed) return;
         headersSent = true;
         res.writeHead(200, { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'audio/webm' });
@@ -60,27 +73,17 @@ function pipeAudioStream(url, res, req) {
     });
 
     ffmpeg.stdout.once('end', () => {
-        if (!headersSent && !res.headersSent && !closed) {
-            log.error('FFMPEG', 'Stream ended unexpectedly without audio data');
-            cleanup();
-            res.writeHead(502).end();
-        }
-    });
-
-    yt.child?.on('exit', (code) => {
-        if (code !== 0 && !closed) {
-            log.error('YTDLP', `yt-dlp exited with error code ${code}`);
-            cleanup();
-            if (!headersSent && !res.headersSent) res.writeHead(502).end();
-        }
+        if (!headersSent) fail('FFMPEG', 'Stream ended unexpectedly without audio data');
     });
 
     yt.catch(err => {
-        if (!err.message?.includes('SIGKILL') && !err.message?.includes('EPIPE')) {
-            log.error('YTDLP', `Stream pipeline error: ${err.message}`);
+        if (closed) return;
+        const msg = err.stderr?.match(/ERROR:\s*(.+)/)?.[1] || err.shortMessage || 'Stream failed';
+        if (!msg.includes('SIGKILL') && !msg.includes('EPIPE')) {
+            fail('YTDLP', msg);
+        } else {
+            cleanup();
         }
-        if (!headersSent && !res.headersSent) res.writeHead(502).end();
-        cleanup();
     });
 
     req.on('close', cleanup);

@@ -16,7 +16,8 @@ class PlayerState {
             isRadioMode: false,
             isFetchingRadio: false,
             isHandlingEnd: false,
-            isStartingTrack: false
+            isStartingTrack: false,
+            radioSeedTrack: null
         });
     }
 
@@ -29,9 +30,9 @@ class PlayerState {
     }
 
     addToHistory(track) {
-        if (track) {
-            this.history = [track, ...this.history.slice(0, Math.max(0, config.historyLimit - 1))];
-        }
+        if (!track || this.history[0]?.url === track.url) return;
+        this.history.unshift(track);
+        if (this.history.length > config.historyLimit) this.history.pop();
     }
 
     clearQueue() {
@@ -48,7 +49,7 @@ class PlayerState {
     }
 
     moveTrack(from, to) {
-        if (from >= 0 && from < this.queue.length && to >= 0 && to <= this.queue.length) {
+        if (from >= 0 && from < this.queue.length && to >= 0 && to < this.queue.length) {
             this.queue.splice(to, 0, this.queue.splice(from, 1)[0]);
             return true;
         }
@@ -64,11 +65,12 @@ class PlayerState {
     }
 
     getForbiddenUrls() {
-        return new Set([
-            this.currentTrack?.url,
-            ...this.history.map(t => t.url),
-            ...this.queue.map(t => t.url)
-        ].filter(Boolean));
+        const urls = new Set();
+        if (this.currentTrack?.url) urls.add(this.currentTrack.url);
+        if (this.radioSeedTrack?.url) urls.add(this.radioSeedTrack.url); // <--- якорный трек
+        for (const t of this.history) if (t?.url) urls.add(t.url);
+        for (const t of this.queue) if (t?.url) urls.add(t.url);
+        return urls;
     }
 
     shouldTriggerRadio() {

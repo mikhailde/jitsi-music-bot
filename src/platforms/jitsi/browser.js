@@ -2,7 +2,21 @@ const { chromium } = require('playwright');
 const config = require('../../config');
 const log = require('../../utils/logger');
 
-async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, onTrackError }) {
+const noop = () => {};
+
+async function launchJitsiBrowser({
+    roomName,
+    domain,
+    onCommandReceived,
+    onTrackEnded,
+    onTrackError,
+    onKicked,
+    onConferenceFailed,
+    onConnectionInterrupted,
+    onConnectionRestored,
+    onCrash,
+    onLocalAudioMuted
+}) {
     const browser = await chromium.launch({
         headless: config.headless,
         handleSIGINT: false,
@@ -25,6 +39,9 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
     const context = await browser.newContext();
     const page = await context.newPage();
 
+    browser.on('disconnected', () => onCrash?.('Browser process disconnected/killed'));
+    page.on('crash', () => onCrash?.('Browser page crashed (OOM or renderer crash)'));
+
     page.on('console', msg => { if (msg.type() === 'error') log.debug('BROWSER', msg.text()); });
     page.on('pageerror', err => log.error('BROWSER', err.message));
 
@@ -35,72 +52,93 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
 
         const audio = new Audio();
         audio.crossOrigin = 'anonymous';
-        const source = ctx.createMediaElementSource(audio);
-        source.connect(gain);
+        ctx.createMediaElementSource(audio).connect(gain);
         gain.connect(dest);
 
-        window.botAudioContext = ctx;
-        window.botDestination = dest;
-        window.botGainNode = gain;
-        window.botAudioElement = audio;
+        Object.assign(window, {
+            botAudioContext: ctx,
+            botDestination: dest,
+            botGainNode: gain,
+            botAudioElement: audio
+        });
 
         const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
         navigator.mediaDevices.getUserMedia = async (c) => {
-            if (c?.audio) {
-                const stream = dest.stream;
-                stream.getAudioTracks().forEach(track => {
-                    track.applyConstraints?.({
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false,
-                        channelCount: 2
-                    }).catch(() => {});
-                });
-                return stream;
-            }
-            return orig(c);
+            if (!c?.audio) return orig(c);
+            const stream = dest.stream;
+            stream.getAudioTracks().forEach(track => {
+                track.applyConstraints?.({
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 2
+                }).catch(() => {});
+            });
+            return stream;
         };
     });
 
-    await Promise.all([
-        page.exposeFunction('onTrackEnded', onTrackEnded),
-        page.exposeFunction('onTrackError', onTrackError),
-        page.exposeFunction('onCommandReceived', onCommandReceived)
-    ]);
+    const handlers = {
+        onTrackEnded, onTrackError, onCommandReceived, onKicked,
+        onConferenceFailed, onConnectionInterrupted, onConnectionRestored, onLocalAudioMuted
+    };
+    await Promise.all(
+        Object.entries(handlers).map(([name, fn]) => page.exposeFunction(name, fn || noop))
+    );
 
-    await page.goto(config.getMeetUrl(roomName), { waitUntil: 'domcontentloaded' });
+    await page.goto(config.getMeetUrl(roomName, domain), {
+        waitUntil: 'domcontentloaded',
+        timeout: config.connectTimeoutSec * 1000
+    });
 
-    try {
-        const btn = page.locator('[data-testid="prejoin.joinMeeting"]');
-        if (await btn.isVisible({ timeout: 2000 })) {
-            await page.locator('input[type="text"]').first().fill(config.botName).catch(() => {});
-            await btn.click().catch(() => {});
-        }
-    } catch {}
-
-    const botJoinTime = Date.now();
-
-    if (config.avatarUrl) {
-        await page.evaluate((url) => {
-            const timer = setInterval(() => {
-                if (typeof window.APP?.conference?.changeLocalAvatarUrl === 'function') {
-                    window.APP.conference.changeLocalAvatarUrl(url);
-                }
-            }, 2000);
-            setTimeout(() => clearInterval(timer), 20000);
-        }, config.avatarUrl);
-    }
-
-    await page.evaluate((joinTime) => {
+    await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
         let elapsed = 0;
+        let lastConf = null;
+
+        const attachConference = (conf) => {
+            if (!conf || conf === lastConf) return;
+            lastConf = conf;
+
+            if (avatarUrl) {
+                window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
+            }
+
+            try {
+                conf.on('conference.kicked', () => window.onKicked());
+                conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
+                conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
+                conf.on('conference.connectionRestored', () => window.onConnectionRestored());
+                conf.on('conference.trackMuteChanged', track => {
+                    try {
+                        if (track?.isLocal?.() && track?.getType?.() === 'audio' && track?.isMuted?.()) {
+                            window.onLocalAudioMuted();
+                        }
+                    } catch {}
+                });
+            } catch {}
+        };
+
         const check = setInterval(() => {
             elapsed += 1000;
+            document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
+
             const store = window.APP?.store;
             if (store) {
                 clearInterval(check);
                 let lastCount = store.getState()['features/chat']?.messages?.length || 0;
+                let lastAudioMuted = false;
+
+                attachConference(store.getState()['features/base/conference']?.conference);
+
                 store.subscribe(() => {
-                    const msgs = store.getState()['features/chat']?.messages;
+                    const state = store.getState();
+                    attachConference(state['features/base/conference']?.conference);
+
+                    const isMuted = Boolean(state['features/base/media']?.audio?.muted);
+                    if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
+                    lastAudioMuted = isMuted;
+
+                    const msgs = state['features/chat']?.messages;
                     if (msgs && msgs.length > lastCount) {
                         for (let i = lastCount; i < msgs.length; i++) {
                             const { timestamp = Date.now(), message } = msgs[i];
@@ -111,11 +149,16 @@ async function launchJitsiBrowser({ roomName, onCommandReceived, onTrackEnded, o
                         lastCount = msgs.length;
                     }
                 });
-            } else if (elapsed >= 30000) {
+            } else if (elapsed >= connectTimeoutMs) {
                 clearInterval(check);
+                window.onConferenceFailed(`Jitsi initialization timeout (${connectTimeoutMs / 1000}s)`);
             }
         }, 1000);
-    }, botJoinTime);
+    }, {
+        joinTime: Date.now(),
+        avatarUrl: config.avatarUrl,
+        connectTimeoutMs: config.connectTimeoutSec * 1000
+    });
 
     return { browser, page };
 }

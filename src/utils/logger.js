@@ -1,32 +1,37 @@
-const colors = {
-    DEBUG: '\x1b[90m',
-    INFO: '\x1b[36m',
-    WARN: '\x1b[33m',
-    ERROR: '\x1b[31m',
-    RESET: '\x1b[0m'
+const RESET = '\x1b[0m';
+const LEVELS = {
+    DEBUG: { tag: '\x1b[90m', name: 'DEBUG', out: console.log },
+    INFO:  { tag: '\x1b[36m', name: 'INFO ', out: console.log },
+    WARN:  { tag: '\x1b[33m', name: 'WARN ', out: console.warn },
+    ERROR: { tag: '\x1b[31m', name: 'ERROR', out: console.error }
 };
 
 const isDebug = () => process.env.DEBUG_MODE === 'true';
 
 const str = (v) => {
     if (v instanceof Error) return v.stack || v.message;
-    if (typeof v === 'object' && v !== null) return JSON.stringify(v);
-    return v;
+    if (typeof v === 'object' && v !== null) {
+        try { return JSON.stringify(v); } catch { return String(v); }
+    }
+    return String(v ?? '');
 };
 
-const write = (lvl, pfx, msg, extra = '') => {
-    const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
-    const c = colors[lvl] || '';
-    const r = colors.RESET;
-    const ext = extra ? ` ${str(extra)}` : '';
-    const line = `${c}[${time}] [${lvl.padEnd(5)}] [${pfx}]${r} ${str(msg)}${ext}`;
+const write = (lvl, pfx, msg, extra) => {
+    const time = new Date().toTimeString().slice(0, 8);
+    const ext = (extra !== undefined && extra !== '') ? ` ${str(extra)}` : '';
+    const text = `${str(msg)}${ext}`;
+    const { tag, name, out } = LEVELS[lvl];
+    const header = `${tag}[${time}] [${name}] [${pfx}]${RESET} `;
 
-    if (lvl === 'ERROR') {
-        console.error(line);
-    } else if (lvl === 'WARN') {
-        console.warn(line);
-    } else {
-        console.log(line);
+    if (!text.includes('\n')) {
+        const trimmed = text.trimEnd();
+        if (trimmed) out(`${header}${trimmed}`);
+        return;
+    }
+
+    for (const line of text.split('\n')) {
+        const trimmed = line.trimEnd();
+        if (trimmed) out(`${header}${trimmed}`);
     }
 };
 
