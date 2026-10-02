@@ -54,10 +54,11 @@ const commands = {
 
     async '/radio'({ state, player, fetchRadio }) {
         state.isRadioMode = !state.isRadioMode;
-        state.radioSeedTrack = state.isRadioMode ? (state.currentTrack || state.history[0] || null) : null;
+        const seed = state.isRadioMode ? (state.currentTrack || state.history[0] || null) : null;
+        state.radioSeedTrack = seed;
 
-        await player.sendChatMessage(state.isRadioMode ? t('j_radio_on') : t('j_radio_off'));
-        if (state.shouldTriggerRadio()) fetchRadio(state.radioSeedTrack);
+        await player.sendChatMessage(t(state.isRadioMode ? 'j_radio_on' : 'j_radio_off'));
+        if (state.shouldTriggerRadio()) fetchRadio(seed);
     },
 
     async '/loop'({ args, state, player, fetchRadio }) {

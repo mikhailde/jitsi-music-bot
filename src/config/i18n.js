@@ -68,7 +68,6 @@ const RAW = {
     ],
     j_radio_on: ['Радио: ВКЛЮЧЕНО (автоподбор треков)', 'Radio: ENABLED (autoplay)'],
     j_radio_off: ['Радио: ВЫКЛЮЧЕНО', 'Radio: DISABLED'],
-    j_radio_wait: ['Радио: подбор следующего трека...', 'Radio: finding next track...'],
     j_radio_exhausted: [
         'Радио: рекомендации исчерпаны. Добавьте трек через /play.',
         'Radio: recommendations exhausted. Add tracks using /play.'

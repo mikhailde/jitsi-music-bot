@@ -7,7 +7,6 @@ services:
     shm_size: '512m'
     stop_grace_period: 10s
     env_file: .env
-    network_mode: host
     deploy:
       resources:
         limits:

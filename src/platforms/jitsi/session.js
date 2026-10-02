@@ -189,7 +189,6 @@ class JitsiSession {
                     const seed = this.state.radioSeedTrack || this.state.history[0] || this.state.currentTrack;
                     if (seed) {
                         log.info('RADIO', `Queue empty, autoplay from anchor: "${seed.title}"`);
-                        await this.bridge.sendChatMessage(t('j_radio_wait'));
                         return this.fetchRadio(seed);
                     }
                 }
