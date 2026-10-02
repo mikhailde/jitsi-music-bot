@@ -8,6 +8,7 @@ High-performance, production-ready music bot for Jitsi Meet conferences with Tel
 [![Playwright](https://img.shields.io/badge/Playwright-v1.63-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![WebAudio](https://img.shields.io/badge/WebAudio-HD_Stereo-blueviolet)](https://www.w3.org/TR/webaudio/)
+[![Telegram](https://img.shields.io/badge/Telegram-@jitsimusic__bot-2CA5E0?logo=telegram&logoColor=white)](https://t.me/jitsimusic_bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -60,6 +61,18 @@ High-performance, production-ready music bot for Jitsi Meet conferences with Tel
 │                                             [ Jitsi WebRTC ]   │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Live Demo
+
+Test the bot live without self-hosting: **[@jitsimusic_bot](https://t.me/jitsimusic_bot)**
+
+> [!NOTE]
+> **Shared Demo Disclaimer**  
+> This public instance runs on personal infrastructure and supports **one active call at a time**. It may occasionally be busy in another meeting, offline, or restricted to admin-only access.
+> 
+> If the demo is occupied or unavailable, please follow the **[Quick Start](#quick-start)** below to spin up your own dedicated instance in under 2 minutes.
 
 ---
 
