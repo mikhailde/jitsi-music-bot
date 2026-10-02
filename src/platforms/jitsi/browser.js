@@ -39,8 +39,20 @@ async function launchJitsiBrowser({
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    browser.on('disconnected', () => onCrash?.('Browser process disconnected/killed'));
-    page.on('crash', () => onCrash?.('Browser page crashed (OOM or renderer crash)'));
+    let isJoined = false;
+    let joinResolve, joinReject;
+    const joinPromise = new Promise((resolve, reject) => {
+        joinResolve = resolve;
+        joinReject = reject;
+    });
+
+    const handleCrash = (reason) => {
+        if (!isJoined) joinReject(new Error(reason));
+        onCrash?.(reason);
+    };
+
+    browser.on('disconnected', () => handleCrash('Browser process disconnected/killed'));
+    page.on('crash', () => handleCrash('Browser page crashed (OOM or renderer crash)'));
 
     page.on('console', msg => { if (msg.type() === 'error') log.debug('BROWSER', msg.text()); });
     page.on('pageerror', err => log.error('BROWSER', err.message));
@@ -81,95 +93,131 @@ async function launchJitsiBrowser({
     });
 
     const handlers = {
-        onTrackEnded, onTrackError, onCommandReceived, onKicked,
-        onConferenceFailed, onConnectionInterrupted, onConnectionRestored, onLocalAudioMuted
+        onTrackEnded,
+        onTrackError,
+        onCommandReceived,
+        onKicked,
+        onConferenceJoined: () => {
+            isJoined = true;
+            joinResolve();
+        },
+        onConferenceFailed: (err) => {
+            if (!isJoined) {
+                joinReject(new Error(`Conference failed: ${err}`));
+            } else {
+                onConferenceFailed?.(err);
+            }
+        },
+        onConnectionInterrupted,
+        onConnectionRestored,
+        onLocalAudioMuted
     };
+
     await Promise.all(
         Object.entries(handlers).map(([name, fn]) => page.exposeFunction(name, fn || noop))
     );
 
-    await page.goto(config.getMeetUrl(roomName, domain), {
-        waitUntil: 'domcontentloaded',
-        timeout: config.connectTimeoutSec * 1000
-    });
+    try {
+        const response = await page.goto(config.getMeetUrl(roomName, domain), {
+            waitUntil: 'domcontentloaded',
+            timeout: config.connectTimeoutSec * 1000
+        });
 
-    await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
-        let elapsed = 0;
-        let lastConf = null;
-        let joined = false;
+        if (response && !response.ok()) {
+            throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
+        }
 
-        const attachConference = (conf) => {
-            if (!conf || conf === lastConf) return;
-            lastConf = conf;
+        const isJitsi = await page.evaluate(() => Boolean(window.config?.hosts));
+        if (!isJitsi) {
+            throw new Error('Not a valid Jitsi Meet instance');
+        }
 
-            if (avatarUrl) {
-                window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
-            }
+        await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
+            let elapsed = 0;
+            let lastConf = null;
+            let joined = false;
 
-            try {
-                conf.on('conference.kicked', () => window.onKicked());
-                conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
-                conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
-                conf.on('conference.connectionRestored', () => window.onConnectionRestored());
-            } catch {}
-        };
+            const attachConference = (conf) => {
+                if (!conf || conf === lastConf) return;
+                lastConf = conf;
 
-        const check = setInterval(() => {
-            elapsed += 1000;
-            document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
+                try {
+                    conf.on('conference.kicked', () => window.onKicked());
+                    conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
+                    conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
+                    conf.on('conference.connectionRestored', () => window.onConnectionRestored());
+                } catch {}
+            };
 
-            const store = window.APP?.store;
-            if (store) {
-                const confState = store.getState()['features/base/conference'];
-                const conf = confState?.conference;
-                attachConference(conf);
+            const check = setInterval(() => {
+                elapsed += 1000;
+                document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
 
-                // Мгновенный выход, если Jitsi вернула критическую ошибку (Lobby, пароль, etc.)
-                if (!joined && confState?.error) {
-                    clearInterval(check);
-                    return window.onConferenceFailed(String(confState.error?.name || confState.error));
-                }
+                const store = window.APP?.store;
 
-                // Успешный вход в конференцию
-                if (!joined && conf?.isJoined?.()) {
-                    joined = true;
-                    clearInterval(check);
+                if (store) {
+                    const confState = store.getState()['features/base/conference'];
+                    const conf = confState?.conference;
+                    attachConference(conf);
 
-                    let lastCount = store.getState()['features/chat']?.messages?.length || 0;
-                    let lastAudioMuted = false;
+                    if (!joined && confState?.error) {
+                        clearInterval(check);
+                        return window.onConferenceFailed(String(confState.error?.name || confState.error));
+                    }
 
-                    store.subscribe(() => {
-                        const state = store.getState();
-                        attachConference(state['features/base/conference']?.conference);
+                    if (!joined && conf?.isJoined?.()) {
+                        joined = true;
+                        clearInterval(check);
 
-                        const isMuted = Boolean(state['features/base/media']?.audio?.muted);
-                        if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
-                        lastAudioMuted = isMuted;
-
-                        const msgs = state['features/chat']?.messages;
-                        if (msgs && msgs.length > lastCount) {
-                            for (let i = lastCount; i < msgs.length; i++) {
-                                const { timestamp = Date.now(), message } = msgs[i];
-                                if (timestamp >= joinTime && message?.startsWith('/')) {
-                                    window.onCommandReceived(message);
-                                }
-                            }
-                            lastCount = msgs.length;
+                        if (avatarUrl) {
+                            window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
                         }
-                    });
-                }
-            }
 
-            if (!joined && elapsed >= connectTimeoutMs) {
-                clearInterval(check);
-                window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
-            }
-        }, 1000);
-    }, {
-        joinTime: Date.now(),
-        avatarUrl: config.avatarUrl,
-        connectTimeoutMs: config.connectTimeoutSec * 1000
-    });
+                        window.onConferenceJoined();
+
+                        let lastCount = store.getState()['features/chat']?.messages?.length || 0;
+                        let lastAudioMuted = false;
+
+                        store.subscribe(() => {
+                            const state = store.getState();
+                            attachConference(state['features/base/conference']?.conference);
+
+                            const isMuted = Boolean(state['features/base/media']?.audio?.muted);
+                            if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
+                            lastAudioMuted = isMuted;
+
+                            const msgs = state['features/chat']?.messages;
+                            if (!msgs || msgs.length < lastCount) lastCount = msgs?.length || 0;
+
+                            if (msgs && msgs.length > lastCount) {
+                                for (let i = lastCount; i < msgs.length; i++) {
+                                    const { timestamp = Date.now(), message } = msgs[i];
+                                    if (timestamp >= joinTime && message?.startsWith('/')) {
+                                        window.onCommandReceived(message);
+                                    }
+                                }
+                                lastCount = msgs.length;
+                            }
+                        });
+                    }
+                }
+
+                if (!joined && elapsed >= connectTimeoutMs) {
+                    clearInterval(check);
+                    window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
+                }
+            }, 1000);
+        }, {
+            joinTime: Date.now(),
+            avatarUrl: config.avatarUrl,
+            connectTimeoutMs: config.connectTimeoutSec * 1000
+        });
+
+        await joinPromise;
+    } catch (err) {
+        await browser.close().catch(() => {});
+        throw err;
+    }
 
     return { browser, page };
 }

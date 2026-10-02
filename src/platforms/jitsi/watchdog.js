@@ -25,7 +25,12 @@ class AfkWatchdog {
                 const p = this.getPage();
                 if (!p || p.isClosed()) return this.stop();
 
-                const count = await p.evaluate(() => window.APP?.conference?.membersCount ?? 1);
+                const count = await p.evaluate(() => {
+                    const n = window.APP?.conference?.membersCount;
+                    return Number.isInteger(n) ? n : null;
+                });
+
+                if (count === null) return;
 
                 if (count <= 1) {
                     if (this.afkSeconds === 0) {
