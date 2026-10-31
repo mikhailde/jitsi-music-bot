@@ -38,7 +38,7 @@ async function launchJitsiBrowser({
         ]
     });
 
-    const context = await browser.newContext();
+    const context = await browser.newContext({ bypassCSP: true });
     const page = await context.newPage();
 
     let isJoined = false;
