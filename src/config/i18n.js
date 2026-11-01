@@ -3,12 +3,12 @@ const idx = config.lang === 'ru' ? 0 : 1;
 
 const RAW = {
     tg_start: [
-        '🎧 Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — статус плеера и очередь\n/leave — отключить от звонка',
-        '🎧 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — join call\n/status — playback status and queue\n/leave — leave call'
+        '🎧 Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — статус плеера и очередь\n/leave — отключить от звонка\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
+        '🎧 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — join call\n/status — playback status and queue\n/leave — leave call\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
     ],
     tg_description: [
-        'Музыкальный бот для Jitsi Meet. Воспроизводит музыку с YouTube с управлением через чат звонка.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
-        'Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
+        'Музыкальный бот для Jitsi Meet. Воспроизводит музыку с YouTube с управлением через чат звонка.',
+        'Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat.'
     ],
     tg_short_description: [
         'Музыкальный бот для Jitsi Meet. Воспроизводит музыку с YouTube с управлением через чат звонка.',
