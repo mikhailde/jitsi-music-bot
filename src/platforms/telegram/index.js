@@ -105,16 +105,22 @@ function createTelegramBot() {
         }), NO_PREVIEW);
     });
 
-    bot.command('leave', async ctx => {
-        const s = getBotStatus();
-        if (!s.isConnected) return ctx.reply(t('tg_status_free'));
+   bot.command('leave', async ctx => {
+        if (!getBotStatus().isConnected) return ctx.reply(t('tg_status_free'));
 
         const user = ctx.from.username ? `@${ctx.from.username}` : `ID:${ctx.from.id}`;
-        const reason = t('reason_tg_leave', { user });
+        const reason = t('reason_tg_leave');
+        const initiatorChatId = activeChatId;
         activeChatId = null;
 
-        await leaveJitsiBot(reason);
-        return ctx.reply(t('tg_left', { reason }));
+        await leaveJitsiBot(`${reason} (${user})`);
+
+        const msg = t('tg_left', { reason });
+        if (initiatorChatId && initiatorChatId !== ctx.chat.id) {
+            await bot.api.sendMessage(initiatorChatId, msg, NO_PREVIEW).catch(() => {});
+        }
+
+        return ctx.reply(msg);
     });
 
     setDisconnectHandler(async ({ reason }) => {

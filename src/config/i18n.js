@@ -24,8 +24,8 @@ const RAW = {
         '✅ Bot connected to meeting: {url}\nControl playback in Jitsi chat (command list: /help).'
     ],
     tg_busy: [
-        '⚠️ Бот уже находится в другой комнате.\nИспользуйте /status или /leave.',
-        '⚠️ Bot is already in another room.\nUse /status or /leave.'
+        '⚠️ Бот уже находится в другой комнате.',
+        '⚠️ Bot is already in another room.'
     ],
     tg_error: ['❌ Ошибка: {error}', '❌ Error: {error}'],
     tg_left: [
@@ -53,7 +53,7 @@ const RAW = {
     reason_crash: ['Сбой браузера: {err}', 'Browser crash: {err}'],
     reason_init_failed: ['Сбой инициализации звонка', 'Conference initialization failed'],
     reason_process_term: ['Остановка сервиса ({signal})', 'Service shutdown ({signal})'],
-    reason_tg_leave: ['Команда /leave в Telegram ({user})', 'Telegram /leave command ({user})'],
+    reason_tg_leave: ['Команда /leave в Telegram', 'Telegram /leave command'],
     reason_normal: ['Штатное отключение', 'Normal disconnect'],
 
     j_search: ['Поиск: {query}...', 'Searching: {query}...'],
