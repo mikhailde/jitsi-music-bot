@@ -3,6 +3,7 @@ const config = require('../../config');
 const log = require('../../utils/logger');
 
 const noop = () => {};
+const stripTimestamp = (str = '') => str.replace(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\s*/i, '');
 
 async function launchJitsiBrowser({
     roomName,
@@ -59,8 +60,10 @@ async function launchJitsiBrowser({
     browser.on('disconnected', () => handleCrash('Browser process disconnected/killed'));
     page.on('crash', () => handleCrash('Browser page crashed (OOM or renderer crash)'));
 
-    page.on('console', msg => { if (msg.type() === 'error') log.debug('BROWSER', msg.text()); });
-    page.on('pageerror', err => log.error('BROWSER', err.message));
+    page.on('console', msg => {
+        if (msg.type() === 'error') log.debug('BROWSER', stripTimestamp(msg.text()));
+    });
+    page.on('pageerror', err => log.error('BROWSER', stripTimestamp(err.message)));
 
     await page.addInitScript(() => {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();

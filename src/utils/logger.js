@@ -16,18 +16,19 @@ const str = (v) => {
     return String(v ?? '');
 };
 
+const pad = (n) => String(n).padStart(2, '0');
+
+const getTimestamp = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 const write = (lvl, pfx, msg, extra) => {
-    const time = new Date().toTimeString().slice(0, 8);
+    const time = getTimestamp();
     const ext = (extra !== undefined && extra !== '') ? ` ${str(extra)}` : '';
     const text = `${str(msg)}${ext}`;
     const { tag, name, out } = LEVELS[lvl];
     const header = `${tag}[${time}] [${name}] [${pfx}]${RESET} `;
-
-    if (!text.includes('\n')) {
-        const trimmed = text.trimEnd();
-        if (trimmed) out(`${header}${trimmed}`);
-        return;
-    }
 
     for (const line of text.split('\n')) {
         const trimmed = line.trimEnd();
