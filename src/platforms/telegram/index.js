@@ -25,23 +25,29 @@ function parseTarget(input) {
     }
 }
 
-async function syncBotDescription(bot) {
-    try {
-        const { description } = await bot.api.getMyDescription();
-        if (!description?.trim()) {
-            await bot.api.setMyDescription({ description: t('tg_description') });
-            log.info('TG', 'Bot description updated');
-        }
-    } catch (err) {
-        log.warn('TG', 'Failed to check or update bot description:', err.message);
-    }
-}
+async function syncBotProfile(bot) {
+    const tasks = [
+        { get: 'getMyDescription', set: 'setMyDescription', key: 'description', val: t('tg_description') },
+        { get: 'getMyShortDescription', set: 'setMyShortDescription', key: 'short_description', val: t('tg_short_description') }
+    ];
 
+    await Promise.all(tasks.map(async ({ get, set, key, val }) => {
+        try {
+            const current = await bot.api[get]();
+            if (!current?.[key]?.trim()) {
+                await bot.api[set]({ [key]: val });
+                log.info('TG', `Bot ${key} updated`);
+            }
+        } catch (err) {
+            log.warn('TG', `Failed to update bot ${key}:`, err.message);
+        }
+    }));
+}
 function createTelegramBot() {
     const client = config.proxy ? { baseFetchConfig: { agent: new SocksProxyAgent(config.proxy) } } : undefined;
     const bot = new Bot(config.telegramToken, { client });
 
-    syncBotDescription(bot);
+    syncBotProfile(bot);
 
     bot.catch(err => log.error('TG', 'Bot error:', err.error || err.message));
 

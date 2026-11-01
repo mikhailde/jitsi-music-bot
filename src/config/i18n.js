@@ -7,8 +7,12 @@ const RAW = {
         '🎵 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — join call\n/status — playback status and queue\n/leave — leave call\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
     ],
     tg_description: [
-        '🎵 Музыкальный бот для Jitsi Meet. Воспроизводит треки с YouTube с управлением в чате звонка.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
-        '🎵 Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat..\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
+        'Музыкальный бот для Jitsi Meet. Воспроизводит музыку с YouTube с управлением через чат звонка.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
+        'Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
+    ],
+    tg_short_description: [
+        'Музыкальный бот для Jitsi Meet. Воспроизводит музыку с YouTube с управлением через чат звонка.',
+        'Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat.'
     ],
     tg_empty_room: [
         'Укажите имя комнаты или ссылку:\n/join my-room',
