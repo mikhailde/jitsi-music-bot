@@ -3,8 +3,12 @@ const idx = config.lang === 'ru' ? 0 : 1;
 
 const RAW = {
     tg_start: [
-        '🎵 Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — состояние плеера и очередь\n/leave — отключить от звонка',
-        '🎵 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — connect to call\n/status — player state and queue\n/leave — disconnect from call'
+        '🎵 Музыкальный бот Jitsi\n\nКоманды:\n/join <комната или ссылка> — подключить к звонку\n/status — статус плеера и очередь\n/leave — отключить от звонка\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
+        '🎵 Jitsi Music Bot\n\nCommands:\n/join <room or URL> — join call\n/status — playback status and queue\n/leave — leave call\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
+    ],
+    tg_description: [
+        '🎵 Музыкальный бот для Jitsi Meet. Воспроизводит треки с YouTube с управлением в чате звонка.\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot',
+        '🎵 Music bot for Jitsi Meet. Streams YouTube music, controlled via in-meeting chat..\n\nGitHub:\nhttps://github.com/mikhailde/jitsi-music-bot'
     ],
     tg_empty_room: [
         'Укажите имя комнаты или ссылку:\n/join my-room',
@@ -12,8 +16,8 @@ const RAW = {
     ],
     tg_joining: ['⏳ Подключение к {room}...', '⏳ Connecting to {room}...'],
     tg_joined: [
-        '✅ Бот подключен к звонку: {url}\nУправление музыкой доступно в чате Jitsi.',
-        '✅ Bot connected to meeting: {url}\nControl playback directly in Jitsi chat.'
+        '✅ Бот подключен к звонку: {url}\nУправление музыкой доступно в чате Jitsi (список команд: /help).',
+        '✅ Bot connected to meeting: {url}\nControl playback in Jitsi chat (command list: /help).'
     ],
     tg_busy: [
         '⚠️ Бот уже находится в другой комнате.\nИспользуйте /status или /leave.',

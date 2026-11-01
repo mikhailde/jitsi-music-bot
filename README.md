@@ -2,7 +2,7 @@
 
 # Jitsi Music Bot
 
-High-performance, production-ready music bot for Jitsi Meet conferences with Telegram remote control, YouTube streaming, and smart autoplay.
+Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled via Telegram and in-meeting chat.
 
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-v1.63-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)

@@ -25,9 +25,23 @@ function parseTarget(input) {
     }
 }
 
+async function syncBotDescription(bot) {
+    try {
+        const { description } = await bot.api.getMyDescription();
+        if (!description?.trim()) {
+            await bot.api.setMyDescription({ description: t('tg_description') });
+            log.info('TG', 'Bot description updated');
+        }
+    } catch (err) {
+        log.warn('TG', 'Failed to check or update bot description:', err.message);
+    }
+}
+
 function createTelegramBot() {
     const client = config.proxy ? { baseFetchConfig: { agent: new SocksProxyAgent(config.proxy) } } : undefined;
     const bot = new Bot(config.telegramToken, { client });
+
+    syncBotDescription(bot);
 
     bot.catch(err => log.error('TG', 'Bot error:', err.error || err.message));
 
@@ -47,7 +61,7 @@ function createTelegramBot() {
         return next();
     });
 
-    bot.command('start', ctx => ctx.reply(t('tg_start')));
+    bot.command('start', ctx => ctx.reply(t('tg_start'), NO_PREVIEW));
 
     bot.command('join', async ctx => {
         const raw = ctx.match.trim();

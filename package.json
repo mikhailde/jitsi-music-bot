@@ -2,7 +2,7 @@
   "name": "jitsi-music-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Production-ready music bot for Jitsi Meet conferences with Telegram control",
+  "description": "Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled via Telegram and in-meeting chat.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
