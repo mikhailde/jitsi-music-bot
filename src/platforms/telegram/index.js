@@ -35,7 +35,7 @@ async function syncBotProfile(bot) {
         try {
             const current = await bot.api[get]();
             if (!current?.[key]?.trim()) {
-                await bot.api[set]({ [key]: val });
+                await bot.api[set](val);
                 log.info('TG', `Bot ${key} updated`);
             }
         } catch (err) {
@@ -43,6 +43,7 @@ async function syncBotProfile(bot) {
         }
     }));
 }
+
 function createTelegramBot() {
     const client = config.proxy ? { baseFetchConfig: { agent: new SocksProxyAgent(config.proxy) } } : undefined;
     const bot = new Bot(config.telegramToken, { client });
