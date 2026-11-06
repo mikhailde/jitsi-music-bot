@@ -4,6 +4,7 @@
 
 Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled via Telegram and in-meeting chat.
 
+[![Jitsi: Handbook](https://img.shields.io/badge/Listed_in-Jitsi_Handbook-17A2B8?logo=jitsi&logoColor=white)](https://jitsi.github.io/handbook/docs/community/third-party-software)
 [![Node.js](https://img.shields.io/badge/Node.js-v20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-v1.63-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
