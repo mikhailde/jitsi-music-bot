@@ -115,7 +115,7 @@ npm start
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `/join <room_or_url>` | Connect to a room on default or custom Jitsi domain | `/join my-room` or `/join meet.company.com/team` |
-| `/status` | View current playback, track URL, queue length, and volume | `/status` |
+| `/status` | View current meeting URL, playing track, queue size, and settings | `/status` |
 | `/leave` | Disconnect the bot from the call | `/leave` |
 
 > [!TIP]
@@ -129,7 +129,7 @@ npm start
 | | `/pause` · `/resume` | Pause / resume current audio playback |
 | | `/skip` · `/replay` | Skip to next track / replay current track from start |
 | | `/stop` | Stop playback and clear the entire queue |
-| **Queue** | `/np` | Show currently playing track with interactive progress bar |
+| **Queue** | `/np` | Show currently playing track with progress bar |
 | | `/queue` | Display upcoming tracks in queue |
 | | `/history` | Show recently played tracks |
 | | `/shuffle` | Randomize the order of tracks in queue |

@@ -156,9 +156,9 @@ const commands = {
 
     async '/history'({ state, player }) {
         if (!state.history.length) return player.sendChatMessage(t('j_hist_empty'));
-        const recent = state.history.slice(0, 10);
-        const list = recent.map((tr, i) => `${i + 1}. ${tr.title} [${formatTime(tr.duration)}]`).join('\n');
-        return player.sendChatMessage(`${t('j_hist_head')}${list}`);
+        const list = state.history.slice(0, config.historyPageSize).map((tr, i) => `${i + 1}. ${tr.title} [${formatTime(tr.duration)}]`).join('\n');
+        const more = state.history.length > config.historyPageSize ? t('j_hist_more', { count: state.history.length - config.historyPageSize }) : '';
+        return player.sendChatMessage(`${t('j_hist_head')}${list}${more}`);
     },
 
     async '/help'({ player }) {
