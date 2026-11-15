@@ -173,7 +173,7 @@ All required parameters must be defined in your `.env` file (empty values are pe
 | **Timeouts** | `IDLE_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
 | | `CONNECT_TIMEOUT_SEC` | Total conference join & ready timeout in seconds (`>= 5`) | `30` |
 | | `RECONNECT_TIMEOUT_SEC` | Wait for connection recovery before leave | `15` |
-| | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds (must be `< 15` for Docker `stop_grace_period`) | `3` |
+| | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds (must be `< 15` for Docker `stop_grace_period`) | `5` |
 | **Browser** | `HEADLESS_MODE` | Run Playwright Chromium in headless mode | `true` |
 
 ---

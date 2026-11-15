@@ -43,6 +43,11 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
     fail(`Parameter PORT must be an integer between 1 and 65535! Received: "${env.PORT}"`);
 }
 
+const opusBitrate = getNum('OPUS_BITRATE');
+if (!Number.isInteger(opusBitrate) || opusBitrate < 6000 || opusBitrate > 510000) {
+    fail(`Parameter OPUS_BITRATE must be an integer between 6000 and 510000! Received: "${env.OPUS_BITRATE}"`);
+}
+
 const jitsiDomain = getStr('JITSI_DOMAIN').replace(/^https?:\/\//i, '').split('/')[0];
 if (!jitsiDomain) fail('Parameter JITSI_DOMAIN cannot be empty!');
 
@@ -58,7 +63,7 @@ const config = {
 
     defaultVolume: Math.min(100, getNum('DEFAULT_VOLUME', 0)) / 100,
     audioBitrate: getStr('AUDIO_BITRATE', true),
-    opusBitrate: getNum('OPUS_BITRATE', 1),
+    opusBitrate,
     historyLimit: getNum('HISTORY_LIMIT', 1),
     historyPageSize: getNum('HISTORY_PAGE_SIZE', 1),
     queuePageSize: getNum('QUEUE_PAGE_SIZE', 1),

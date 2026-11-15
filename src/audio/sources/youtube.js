@@ -75,7 +75,7 @@ async function getTrackInfo(query, playlistItems = null) {
     const start = performance.now();
     try {
         log.debug('YTDLP', `Search: "${q}"`);
-        const { stdout } = await execFileAsync(YT_BIN, args, { timeout: 30000, maxBuffer: 10 * 1024 * 1024 });
+        const { stdout } = await execFileAsync(YT_BIN, args, { timeout: 45000, maxBuffer: 10 * 1024 * 1024 });
         const tracks = [];
 
         for (const line of (stdout || '').trim().split('\n')) {
