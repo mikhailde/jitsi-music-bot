@@ -22,7 +22,7 @@ Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled vi
 - **Telegram Remote Control**: Manage room connections, live playback status, and access control via Telegram bot powered by [GrammY](https://grammy.dev/).
 - **Multi-Instance & JWT Rooms**: Seamlessly join public (`meet.jit.si`) or custom corporate/JWT-authenticated (`?jwt=...`) Jitsi instances via smart URL parsing.
 - **YouTube PO Token & Auto-Update**: Built-in `bgutil-ytdlp-pot-provider` Deno sidecar and automatic nightly `yt-dlp` updates to prevent server IP `403` and bot-check failures.
-- **Infinite Radio Mode**: Autoplays relevant recommendations from YouTube Mix anchored to seed tracks when the queue is exhausted.
+- **Infinite Radio Mode**: Autoplays relevant recommendations from YouTube Music radio (`RDAMVM` with `RD` fallback) and in-memory mix caching when the queue is exhausted.
 - **Real-Time Telegram Alerts**: Asynchronous push notifications in Telegram explaining why the bot left (moderator kick, idle timeout, lobby timeout, network drop, or crash).
 - **Smart Moderation & Resilience**: Auto-pauses on moderator mute or when the room becomes empty (resuming automatically when participants rejoin), handles temporary network drops, and runs unprivileged (`pwuser`) with Docker `init: true`.
 - **Zero-Dependency HTTP Streamer**: Native `node:http` and process-group stream pipeline without heavy web frameworks.
@@ -155,7 +155,7 @@ All required parameters must be defined in your `.env` file (empty values are pe
 | | `LANGUAGE` | Interface language (`ru` or `en`) | `en` |
 | | `DEBUG_MODE` | Verbose debug and benchmark logging | `false` |
 | | `TZ` | Container timezone for logs (optional) | `UTC` |
-| | `PROXY_URL` | Proxy URL (`socks5://` for Telegram & `yt-dlp`; `http://` applies to `yt-dlp` only, optional) | `socks5://user:pass@host:port` |
+| | `PROXY_URL` | Proxy URL (`socks5://` for Telegram, `yt-dlp` & `bgutil`; `http://` for `yt-dlp` & `bgutil`, optional) | `socks5://user:pass@host:port` |
 | | `POT_PROVIDER_URL` | External PO Token server URL (optional, auto-set in Docker Compose) | `http://127.0.0.1:4416` |
 | **Security** | `TELEGRAM_TOKEN` | Telegram bot token from @BotFather | `123456:ABC-DEF...` |
 | | `TELEGRAM_ADMIN_IDS`| Comma-separated admin IDs (empty = public access) | `678094226,12345678` |
