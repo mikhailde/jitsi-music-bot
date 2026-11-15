@@ -18,13 +18,14 @@ Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled vi
 
 ## Highlights
 
-- **HD WebAudio Pipeline**: Direct WebRTC audio injection with stereo and Opus bitrates up to 510 kbps. Explicit bypass of browser AEC, AGC, and noise suppression.
-- **Telegram Remote Control**: Manage room connections, status checks, and access control via Telegram bot powered by [GrammY](https://grammy.dev/).
-- **Multi-Instance & Self-Hosted Jitsi**: Seamlessly join public (`meet.jit.si`) or custom corporate Jitsi instances via smart URL parsing.
+- **HD WebAudio Pipeline**: Direct 48 kHz WebAudio injection with stereo and Opus bitrates up to 510 kbps. Disables browser/Jitsi audio processing (`disableAP`), Opus DTX, and Opus RED.
+- **Telegram Remote Control**: Manage room connections, live playback status, and access control via Telegram bot powered by [GrammY](https://grammy.dev/).
+- **Multi-Instance & JWT Rooms**: Seamlessly join public (`meet.jit.si`) or custom corporate/JWT-authenticated (`?jwt=...`) Jitsi instances via smart URL parsing.
+- **YouTube PO Token & Auto-Update**: Built-in `bgutil-ytdlp-pot-provider` Deno sidecar and automatic nightly `yt-dlp` updates to prevent server IP `403` and bot-check failures.
 - **Infinite Radio Mode**: Autoplays relevant recommendations from YouTube Mix anchored to seed tracks when the queue is exhausted.
-- **Real-Time Telegram Alerts**: Asynchronous push notifications in Telegram explaining why the bot left (moderator kick, idle timeout, network drop, or crash).
-- **Smart Moderation & Resilience**: Automatically pauses on moderator mute, gracefully handles kicks, reconnects on temporary network drops, and cleans up zombies via Docker `init: true`.
-- **Zero-Dependency HTTP Streamer**: Native `node:http` and pipeline streams without heavy web frameworks.
+- **Real-Time Telegram Alerts**: Asynchronous push notifications in Telegram explaining why the bot left (moderator kick, idle timeout, lobby timeout, network drop, or crash).
+- **Smart Moderation & Resilience**: Auto-pauses on moderator mute or when the room becomes empty (resuming automatically when participants rejoin), handles temporary network drops, and runs unprivileged (`pwuser`) with Docker `init: true`.
+- **Zero-Dependency HTTP Streamer**: Native `node:http` and process-group stream pipeline without heavy web frameworks.
 - **Fail-Fast Configuration**: Strict `.env` validation with zero hidden magic numbers.
 
 ---
@@ -35,32 +36,33 @@ Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled vi
 [ Telegram / Chat ]
         │ (Commands)
         ▼
-┌──────────────────┐       Piped Raw Stream       ┌──────────────┐
-│  Player State    │ ───────────────────────────> │    yt-dlp    │
-│  & Queue Manager │                              └──────┬───────┘
-└────────┬─────────┘                                     │ (Raw Audio)
-         │                                               ▼
-         │                                        ┌──────────────┐
-         │                                        │    ffmpeg    │ (libopus / stereo)
-         │                                        └──────┬───────┘
-         │                                               │ (audio/webm)
-         │                                               ▼
-         │                                        ┌──────────────┐
-         │                                        │ node:http    │ :PORT/audio-stream
-         │                                        │ Streamer     │
-         │                                        └──────┬───────┘
-         │                                               │ HTTP Chunked
-         ▼                                               ▼
-┌────────────────────────────────────────────────────────────────┐
-│ Playwright (Headless Chromium)                                 │
-│                                                                │
-│  ┌───────────────┐     ┌──────────────┐     ┌────────────────┐ │
-│  │ <audio> node  │ ──> │ AudioContext │ ──> │ getUserMedia() │ │
-│  └───────────────┘     └──────────────┘     └───────┬────────┘ │
-│                                                     │          │
-│                                                     ▼          │
-│                                             [ Jitsi WebRTC ]   │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────────┐     Track URL      ┌──────────────┐   PO Token   ┌─────────────────┐
+│  Player State    │ ─────────────────> │    yt-dlp    │ <──────────> │ bgutil-provider │
+│  & Queue Manager │                    └──────┬───────┘   (:4416)    │ (Deno Sidecar)  │
+└────────┬─────────┘                           │ (Raw Audio)          └─────────────────┘
+         │                                     ▼
+         │                              ┌──────────────┐
+         │                              │    ffmpeg    │ (libopus / 48kHz stereo)
+         │                              └──────┬───────┘
+         │                                     │ (audio/webm)
+         │                                     ▼
+         │                              ┌──────────────┐
+         │                              │ node:http    │ 127.0.0.1:PORT/audio-stream
+         │                              │ Streamer     │
+         │                              └──────┬───────┘
+         │                                     │ HTTP Chunked
+         ▼                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Playwright (Headless Chromium, unprivileged pwuser)                     │
+│                                                                         │
+│  ┌───────────────┐     ┌────────────────────┐     ┌───────────────────┐ │
+│  │ <audio> node  │ ──> │ AudioContext 48kHz │ ──> │ getUserMedia()    │ │
+│  └───────────────┘     │  + GainNode        │     │ (cloned track)    │ │
+│                        └────────────────────┘     └─────────┬─────────┘ │
+│                                                             │           │
+│                                                             ▼           │
+│                                                    [ Jitsi WebRTC ]     │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -95,16 +97,18 @@ nano .env # Fill in TELEGRAM_TOKEN and adjust preferences
 ```bash
 docker compose up -d --build
 ```
+This starts both `jitsi-music-bot` and the internal `jitsi-pot-provider` PO Token sidecar container.
 
 <details>
 <summary><b>Running locally without Docker</b></summary>
 
-Ensure you have **Node.js 20+**, **FFmpeg**, and **Deno** installed:
+Ensure you have **Node.js 20+**, **Python 3.11+** (required on Linux by `youtube-dl-exec`), **FFmpeg**, and **Deno** installed:
 ```bash
 npm ci
 npm run check  # Verify syntax of all modules
 npm start
 ```
+*(Optional: for PO Token support locally, also install the `bgutil-ytdlp-pot-provider` plugin for `yt-dlp`, run the provider server, and set `POT_PROVIDER_URL`.)*
 </details>
 
 ---
@@ -114,22 +118,19 @@ npm start
 ### Telegram Bot
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `/join <room_or_url>` | Connect to a room on default or custom Jitsi domain | `/join my-room` or `/join meet.company.com/team` |
-| `/status` | View current meeting URL, playing track, queue size, and settings | `/status` |
+| `/join <room_or_url>` | Connect to a room on default or custom Jitsi domain (supports `?jwt=...`) | `/join my-room` or `/join https://meet.company.com/team?jwt=...` |
+| `/status` | View current meeting URL, playing/paused track, queue size, and settings | `/status` |
 | `/leave` | Disconnect the bot from the call | `/leave` |
-
-> [!TIP]
-> You can pass direct URLs to `/join` — the bot automatically extracts the domain and room name, allowing you to connect it to any private or self-hosted Jitsi instance on the fly.
 
 ### Jitsi In-Meeting Chat
 | Category | Command | Description |
 | :--- | :--- | :--- |
-| **Playback** | `/play <query\|URL>` | Play track immediately or add to end of queue |
-| | `/playnext <query\|URL>` | Insert track to play immediately after the current one |
+| **Playback** | `/play <query\|URL>` | Play YouTube track/playlist immediately or add to end of queue |
+| | `/playnext <query\|URL>` | Insert YouTube track/playlist to play immediately after the current one |
 | | `/pause` · `/resume` | Pause / resume current audio playback |
 | | `/skip` · `/replay` | Skip to next track / replay current track from start |
 | | `/stop` | Stop playback and clear the entire queue |
-| **Queue** | `/np` | Show currently playing track with progress bar |
+| **Queue** | `/np` | Show currently playing track with progress bar (and pause/loop state) |
 | | `/queue` | Display upcoming tracks in queue |
 | | `/history` | Show recently played tracks |
 | | `/shuffle` | Randomize the order of tracks in queue |
@@ -140,21 +141,22 @@ npm start
 | | `/radio` | Toggle infinite autoplay mode from YouTube Mix |
 | | `/loop <track\|queue\|off>` | Set repeat mode (current track, whole queue, or disabled) |
 | **Control** | `/help` | Print complete command manual in meeting chat |
-| | `/leave` | Disconnect bot from conference |
+| | `/leave` · `/exit` | Disconnect bot from conference |
 
 ---
 
 ## Configuration (`.env`)
 
-All parameters must be defined in your `.env` file (empty values are permitted where marked optional):
+All required parameters must be defined in your `.env` file (empty values are permitted where marked optional; `TZ` and `POT_PROVIDER_URL` are optional overrides not required in `.env`):
 
 | Category | Key | Description | Example |
 | :--- | :--- | :--- | :--- |
-| **Main** | `PORT` | Local audio streamer HTTP port | `3000` |
+| **Main** | `PORT` | Local audio streamer HTTP port (`1–65535`) | `3000` |
 | | `LANGUAGE` | Interface language (`ru` or `en`) | `en` |
 | | `DEBUG_MODE` | Verbose debug and benchmark logging | `false` |
 | | `TZ` | Container timezone for logs (optional) | `UTC` |
-| | `PROXY_URL` | SOCKS5/HTTP proxy URL (optional) | `socks5://user:pass@host:port` |
+| | `PROXY_URL` | Proxy URL (`socks5://` for Telegram & `yt-dlp`; `http://` applies to `yt-dlp` only, optional) | `socks5://user:pass@host:port` |
+| | `POT_PROVIDER_URL` | External PO Token server URL (optional, auto-set in Docker Compose) | `http://127.0.0.1:4416` |
 | **Security** | `TELEGRAM_TOKEN` | Telegram bot token from @BotFather | `123456:ABC-DEF...` |
 | | `TELEGRAM_ADMIN_IDS`| Comma-separated admin IDs (empty = public access) | `678094226,12345678` |
 | **Jitsi** | `JITSI_DOMAIN` | Default Jitsi instance domain | `meet.jit.si` |
@@ -162,45 +164,45 @@ All parameters must be defined in your `.env` file (empty values are permitted w
 | | `BOT_AVATAR` | Image URL for bot's avatar (optional) | `https://example.com/avatar.png` |
 | **Audio** | `DEFAULT_VOLUME` | Initial volume percentage (0–100) | `50` |
 | | `AUDIO_BITRATE` | FFmpeg output stream bitrate | `192k` |
-| | `OPUS_BITRATE` | Maximum Opus average bitrate | `510000` |
+| | `OPUS_BITRATE` | Maximum Opus average bitrate in bps (`6000–510000`) | `510000` |
 | | `HISTORY_LIMIT` | Track history capacity | `20` |
 | | `HISTORY_PAGE_SIZE` | Tracks displayed per `/history` call | `5` |
 | | `QUEUE_PAGE_SIZE` | Tracks displayed per `/queue` call | `5` |
 | | `RADIO_ITEMS_LIMIT`| Depth of YouTube Mix candidate search | `10` |
 | | `MAX_PLAYLIST_ITEMS`| Maximum tracks loaded from a single playlist | `50` |
 | **Timeouts** | `IDLE_TIMEOUT_SEC` | Leave empty room after N seconds | `300` |
-| | `CONNECT_TIMEOUT_SEC` | Conference join & ready timeout in seconds | `30` |
+| | `CONNECT_TIMEOUT_SEC` | Total conference join & ready timeout in seconds (`>= 5`) | `30` |
 | | `RECONNECT_TIMEOUT_SEC` | Wait for connection recovery before leave | `15` |
-| | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds | `3` |
+| | `SHUTDOWN_TIMEOUT_SEC`| Graceful shutdown timeout in seconds (must be `< 15` for Docker `stop_grace_period`) | `3` |
 | **Browser** | `HEADLESS_MODE` | Run Playwright Chromium in headless mode | `true` |
 
 ---
 
 ## Audio Engineering Details
 
-Standard WebRTC clients enforce aggressive signal conditioning intended for vocal clarity: Acoustic Echo Cancellation (AEC), Noise Suppression (NS), and Automatic Gain Control (AGC). These filters distort music, reduce dynamic range, and collapse stereo separation into mono.
+Standard WebRTC clients enforce aggressive signal conditioning intended for vocal clarity: Acoustic Echo Cancellation (AEC), Noise Suppression (NS), Automatic Gain Control (AGC), and Opus DTX/RED. These filters distort music, cut quiet passages, reduce dynamic range, and collapse stereo separation into mono.
 
-This bot bypasses these constraints at the browser level:
+This bot bypasses these constraints at the browser and Jitsi configuration level:
 
-1. **Native Web Audio Interception:** An init script is injected into the Chromium context prior to Jitsi loading.
-2. **Virtual Audio Destination:**
+1. **Native Web Audio & Permissions:** An init script is injected into the Chromium context prior to Jitsi loading, while Playwright explicitly grants `local-network-access` to the Jitsi origin so `https://` rooms can stream from `127.0.0.1` without blocked local-network prompts.
+2. **Virtual Audio Destination (48 kHz):**
    ```javascript
-   const ctx = new AudioContext();
+   const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
    const dest = ctx.createMediaStreamDestination();
    const gain = ctx.createGain();
    // HTMLAudioElement streams from local HTTP -> GainNode -> Destination
    ```
-3. **Constraint Overriding:** `navigator.mediaDevices.getUserMedia` intercepts Jitsi's audio requests and enforces pure studio pass-through:
-   - `echoCancellation: false`
-   - `noiseSuppression: false`
-   - `autoGainControl: false`
-   - `channelCount: 2` (Stereo)
-4. **Conference Hash Flags:** Parameters force stereo transport and high bitrates on the WebRTC bridge:
+3. **Cloned Track Pass-Through:** `navigator.mediaDevices.getUserMedia` intercepts Jitsi's audio requests and returns cloned tracks (`dest.stream.getAudioTracks().map(t => t.clone())`) from the native stereo 48 kHz WebAudio destination, preventing `lib-jitsi-meet` track disposal from terminating the shared stream.
+4. **Conference Hash Flags:** Parameters disable browser audio processing, disable Opus DTX/RED, disable incoming video streams, and force stereo transport on the WebRTC bridge:
    ```text
    #config.audioQuality.stereo=true
    &config.audioQuality.opusMaxAverageBitrate=510000
-   &config.startAudioOnly=true
-   &config.disableAudioLevels=true
+   &config.audioQuality.enableOpusDtx=false
+   &config.enableOpusRed=false
+   &config.disableAP=true
+   &config.startLastN=0
+   &config.channelLastN=0
+   &config.p2p.enabled=false
    ```
 
 ---

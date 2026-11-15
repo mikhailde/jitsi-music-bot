@@ -6,9 +6,13 @@ class JitsiPlayerBridge {
         this.getPage = getPage;
     }
 
-    async eval(fn, arg) {
+    async eval(fn, arg, strict = false) {
         const p = this.getPage();
-        return p && !p.isClosed() ? p.evaluate(fn, arg).catch(() => null) : null;
+        if (!p || p.isClosed()) {
+            if (strict) throw new Error('Browser page is not available');
+            return null;
+        }
+        return strict ? p.evaluate(fn, arg) : p.evaluate(fn, arg).catch(() => null);
     }
 
     sendChatMessage(text) {
@@ -19,29 +23,25 @@ class JitsiPlayerBridge {
         }, text);
     }
 
-    playTrack(ytUrl, vol) {
-        return this.eval(async ({ ytUrl, vol, port }) => {
+    async playTrack(ytUrl, vol) {
+        const started = await this.eval(async ({ ytUrl, vol, port }) => {
+            const a = window.botAudioElement;
+            if (!a) return false;
+
             const ctx = window.botAudioContext;
             if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
             try {
                 if (window.APP?.conference?.isLocalAudioMuted?.()) window.APP.conference.muteAudio(false);
             } catch {}
 
-            const a = window.botAudioElement;
-            if (!a) return;
-
-            window.isManuallyStopped = true;
-            a.onended = a.onerror = null;
+            const gen = (window.botPlayGen = (window.botPlayGen || 0) + 1);
             a.pause();
-            a.removeAttribute('src');
-            window.isManuallyStopped = false;
 
             if (window.botGainNode) window.botGainNode.gain.value = vol;
 
-            let done = false;
             const end = (fn, arg) => {
-                if (done || window.isManuallyStopped) return;
-                done = true;
+                if (gen !== window.botPlayGen) return;
+                window.botPlayGen++;
                 if (typeof fn === 'function') fn(arg);
             };
 
@@ -49,49 +49,67 @@ class JitsiPlayerBridge {
             a.onended = () => end(window.onTrackEnded);
 
             a.src = `http://127.0.0.1:${port}/audio-stream?url=${encodeURIComponent(ytUrl)}&t=${Date.now()}`;
-            try {
-                await a.play();
-            } catch (e) {
+            a.play().catch(e => {
                 if (e.name !== 'AbortError') end(window.onTrackError, `Play API Error: ${e.message}`);
-            }
-        }, { ytUrl, vol, port: config.port });
+            });
+            return true;
+        }, { ytUrl, vol, port: config.port }, true);
+
+        if (!started) throw new Error('Audio element not initialized');
     }
 
     stopTrack() {
         return this.eval(() => {
+            window.botPlayGen = (window.botPlayGen || 0) + 1;
             const a = window.botAudioElement;
             if (!a) return;
-            window.isManuallyStopped = true;
             a.onended = a.onerror = null;
             a.pause();
-            a.removeAttribute('src');
+            if (a.hasAttribute('src')) {
+                a.removeAttribute('src');
+                a.load();
+            }
         });
     }
 
     async pauseTrack() {
-        await this.eval(() => window.botAudioElement?.pause());
-        return this.sendChatMessage(t('j_pause'));
+        const paused = await this.eval(() => {
+            const a = window.botAudioElement;
+            if (!a || a.paused) return false;
+            a.pause();
+            return true;
+        });
+        if (paused) await this.sendChatMessage(t('j_pause'));
+        return Boolean(paused);
     }
 
     async resumeTrack() {
-        await this.eval(async () => {
+        const resumed = await this.eval(async () => {
+            const a = window.botAudioElement;
+            if (!a || !a.src || !a.paused) return false;
+
             const ctx = window.botAudioContext;
             if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
             try {
                 if (window.APP?.conference?.isLocalAudioMuted?.()) window.APP.conference.muteAudio(false);
             } catch {}
-            await window.botAudioElement?.play().catch(() => {});
+
+            try {
+                await a.play();
+                return true;
+            } catch {
+                return false;
+            }
         });
-        return this.sendChatMessage(t('j_resume'));
+        if (resumed) await this.sendChatMessage(t('j_resume'));
+        return Boolean(resumed);
     }
 
     async setVolume(vol) {
-        const factor = vol / 100;
         await this.eval(v => {
             if (window.botGainNode) window.botGainNode.gain.value = v;
-        }, factor);
+        }, vol / 100);
         await this.sendChatMessage(t('j_volume', { vol }));
-        return factor;
     }
 
     async getCurrentTime() {

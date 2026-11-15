@@ -8,6 +8,7 @@ const stripTimestamp = (str = '') => str.replace(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d
 async function launchJitsiBrowser({
     roomName,
     domain,
+    search = '',
     onCommandReceived,
     onTrackEnded,
     onTrackError,
@@ -27,20 +28,18 @@ async function launchJitsiBrowser({
         handleSIGHUP: false,
         args: [
             '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--use-fake-ui-for-media-stream',
-            '--disable-web-security',
-            '--allow-running-insecure-content',
-            `--unsafely-treat-insecure-origin-as-secure=http://127.0.0.1:${config.port}`,
+            '--auto-accept-camera-and-microphone-capture',
+            '--use-fake-device-for-media-stream',
             '--autoplay-policy=no-user-gesture-required',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
+            '--mute-audio',
+            '--disable-site-isolation-trials',
+            '--disable-gpu-shader-disk-cache',
+            '--disk-cache-size=1',
+            '--media-cache-size=1',
+            '--log-level=3',
+            ...(config.headless ? [] : ['--disable-gpu'])
         ]
     });
-
-    const context = await browser.newContext({ bypassCSP: true });
-    const page = await context.newPage();
 
     let isJoined = false;
     let isClosing = false;
@@ -51,208 +50,210 @@ async function launchJitsiBrowser({
     });
     joinPromise.catch(() => {});
 
-    const handleCrash = (reason) => {
-        if (isClosing) return;
-        if (!isJoined) joinReject(new Error(reason));
-        onCrash?.(reason);
-    };
+    try {
+        const meetUrl = config.getMeetUrl(roomName, domain, search);
+        const context = await browser.newContext({ bypassCSP: true });
+        await context.grantPermissions(['local-network-access'], {
+            origin: new URL(meetUrl).origin
+        }).catch(() => {});
+        const page = await context.newPage();
 
-    browser.on('disconnected', () => handleCrash('Browser process disconnected/killed'));
-    page.on('crash', () => handleCrash('Browser page crashed (OOM or renderer crash)'));
+        const handleCrash = (reason) => {
+            if (isClosing) return;
+            if (!isJoined) {
+                isClosing = true;
+                return joinReject(new Error(reason));
+            }
+            onCrash?.(reason);
+        };
 
-    page.on('console', msg => {
-        if (msg.type() === 'error') log.debug('BROWSER', stripTimestamp(msg.text()));
-    });
-    page.on('pageerror', err => log.error('BROWSER', stripTimestamp(err.message)));
+        browser.on('disconnected', () => handleCrash('Browser process disconnected/killed'));
+        page.on('crash', () => handleCrash('Browser page crashed (OOM or renderer crash)'));
 
-    await page.addInitScript(() => {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const dest = ctx.createMediaStreamDestination();
-        const gain = ctx.createGain();
+        page.on('console', msg => {
+            if (msg.type() === 'error') log.debug('BROWSER', stripTimestamp(msg.text()));
+        });
+        page.on('pageerror', err => log.error('BROWSER', stripTimestamp(err.message)));
 
-        const audio = new Audio();
-        audio.crossOrigin = 'anonymous';
-        ctx.createMediaElementSource(audio).connect(gain);
-        gain.connect(dest);
+        await page.addInitScript(() => {
+            const ctx = new window.AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
+            const dest = ctx.createMediaStreamDestination();
+            const gain = ctx.createGain();
+            const audio = new Audio();
+            audio.crossOrigin = 'anonymous';
+            ctx.createMediaElementSource(audio).connect(gain);
+            gain.connect(dest);
 
-        Object.assign(window, {
-            botAudioContext: ctx,
-            botDestination: dest,
-            botGainNode: gain,
-            botAudioElement: audio
+            Object.assign(window, {
+                botAudioContext: ctx,
+                botGainNode: gain,
+                botAudioElement: audio
+            });
+
+            if (navigator.mediaDevices?.getUserMedia) {
+                const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+                navigator.mediaDevices.getUserMedia = async (c) => (
+                    c?.audio ? new MediaStream(dest.stream.getAudioTracks().map(t => t.clone())) : orig(c)
+                );
+            }
         });
 
-        if (navigator.mediaDevices?.getUserMedia) {
-            const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-            navigator.mediaDevices.getUserMedia = async (c) => {
-                if (!c?.audio) return orig(c);
-                const stream = dest.stream;
-                stream.getAudioTracks().forEach(track => {
-                    track.applyConstraints?.({
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false,
-                        channelCount: 2
-                    }).catch(() => {});
-                });
-                return stream;
-            };
+        const handlers = {
+            onTrackEnded,
+            onTrackError,
+            onCommandReceived,
+            onKicked,
+            onConferenceJoined: () => {
+                isJoined = true;
+                joinResolve();
+            },
+            onConferenceFailed: (err) => {
+                if (!isJoined) joinReject(new Error(`Conference failed: ${err}`));
+                else onConferenceFailed?.(err);
+            },
+            onConnectionInterrupted,
+            onConnectionRestored,
+            onLocalAudioMuted,
+            onRoomEmpty,
+            onRoomActive
+        };
+
+        await Promise.all(
+            Object.entries(handlers).map(([name, fn]) => page.exposeFunction(name, fn || noop))
+        );
+
+        const connectTimeoutMs = config.connectTimeoutSec * 1000;
+        const deadline = Date.now() + connectTimeoutMs;
+        const response = await page.goto(meetUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: connectTimeoutMs
+        });
+
+        if (response && !response.ok()) {
+            throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
         }
-    });
 
-    const handlers = {
-        onTrackEnded,
-        onTrackError,
-        onCommandReceived,
-        onKicked,
-        onConferenceJoined: () => {
-            isJoined = true;
-            joinResolve();
-        },
-        onConferenceFailed: (err) => {
-            if (!isJoined) {
-                joinReject(new Error(`Conference failed: ${err}`));
-            } else {
-                onConferenceFailed?.(err);
-            }
-        },
-        onConnectionInterrupted,
-        onConnectionRestored,
-        onLocalAudioMuted,
-        onRoomEmpty,
-        onRoomActive
-    };
+        const isJitsi = await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
+            if (!window.config?.hosts) return false;
 
-    await Promise.all(
-        Object.entries(handlers).map(([name, fn]) => page.exposeFunction(name, fn || noop))
-    );
+            let elapsed = 0;
+            let lastConf = null;
+            let joined = false;
+            let lastRoomEmpty = null;
+            let check = null;
 
-    const response = await page.goto(config.getMeetUrl(roomName, domain), {
-        waitUntil: 'domcontentloaded',
-        timeout: config.connectTimeoutSec * 1000
-    });
+            const updateRoomActivity = (conf) => {
+                const participants = conf?.getParticipants?.();
+                const count = Array.isArray(participants)
+                    ? participants.length
+                    : (typeof conf?.membersCount === 'number' ? Math.max(0, conf.membersCount - 1) : null);
 
-    if (response && !response.ok()) {
-        await browser.close().catch(() => {});
-        throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
-    }
+                if (count === null) return;
+                const isEmpty = count === 0;
+                if (isEmpty === lastRoomEmpty) return;
+                lastRoomEmpty = isEmpty;
 
-    const isJitsi = await page.evaluate(() => Boolean(window.config?.hosts));
-    if (!isJitsi) {
-        await browser.close().catch(() => {});
-        throw new Error('Not a valid Jitsi Meet instance');
-    }
+                if (isEmpty) window.onRoomEmpty();
+                else window.onRoomActive();
+            };
 
-    await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
-        let elapsed = 0;
-        let lastConf = null;
-        let joined = false;
-        let lastRoomEmpty = null;
+            const attachConference = (conf) => {
+                if (!conf || conf === lastConf) return;
+                lastConf = conf;
 
-        const updateRoomActivity = (conf) => {
-            if (!conf) return;
-            const participants = conf.getParticipants?.();
-            const count = Array.isArray(participants)
-                ? participants.length
-                : (typeof conf.membersCount === 'number' ? Math.max(0, conf.membersCount - 1) : null);
-
-            if (count === null) return;
-
-            const isEmpty = count === 0;
-            if (isEmpty === lastRoomEmpty) return;
-            lastRoomEmpty = isEmpty;
-
-            if (isEmpty) {
-                window.onRoomEmpty();
-            } else {
-                window.onRoomActive();
-            }
-        };
-
-        const attachConference = (conf) => {
-            if (!conf || conf === lastConf) return;
-            lastConf = conf;
-
-            if (avatarUrl) {
-                window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
-            }
-
-            try {
-                conf.on('conference.kicked', () => window.onKicked());
-                conf.on('conference.failed', err => window.onConferenceFailed(String(err || 'Unknown failure')));
-                conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
-                conf.on('conference.connectionRestored', () => window.onConnectionRestored());
-                conf.on('conference.userJoined', () => updateRoomActivity(conf));
-                conf.on('conference.userLeft', () => updateRoomActivity(conf));
-            } catch {}
-        };
-
-        const check = setInterval(() => {
-            elapsed += 1000;
-            document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
-
-            const store = window.APP?.store;
-
-            if (store) {
-                const confState = store.getState()['features/base/conference'];
-                const conf = confState?.conference;
-                attachConference(conf);
-
-                if (!joined && confState?.error) {
-                    clearInterval(check);
-                    return window.onConferenceFailed(String(confState.error?.name || confState.error));
-                }
-
-                if (!joined && conf?.isJoined?.()) {
-                    joined = true;
-                    clearInterval(check);
-                    window.onConferenceJoined();
-                    updateRoomActivity(conf);
-
-                    let lastCount = store.getState()['features/chat']?.messages?.length || 0;
-                    let lastAudioMuted = false;
-
-                    store.subscribe(() => {
-                        const state = store.getState();
-                        const currentConf = state['features/base/conference']?.conference;
-                        attachConference(currentConf);
-                        updateRoomActivity(currentConf);
-
-                        const isMuted = Boolean(state['features/base/media']?.audio?.muted);
-                        if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
-                        lastAudioMuted = isMuted;
-
-                        const msgs = state['features/chat']?.messages;
-                        const myId = state['features/base/participants']?.local?.id;
-
-                        if (msgs && msgs.length > lastCount) {
-                            for (let i = lastCount; i < msgs.length; i++) {
-                                const msg = msgs[i];
-                                const isMe = msg.isLocal || (myId && msg.senderId === myId);
-
-                                if (!isMe && (msg.timestamp || Date.now()) >= joinTime && msg.message?.startsWith('/')) {
-                                    window.onCommandReceived(msg.message);
-                                }
-                            }
-                            lastCount = msgs.length;
-                        }
+                try {
+                    conf.on('conference.kicked', () => window.onKicked());
+                    conf.on('conference.failed', err => {
+                        if (!joined) clearInterval(check);
+                        window.onConferenceFailed(String(err || 'Unknown failure'));
                     });
+                    conf.on('conference.connectionInterrupted', () => window.onConnectionInterrupted());
+                    conf.on('conference.connectionRestored', () => window.onConnectionRestored());
+                    conf.on('conference.userJoined', () => updateRoomActivity(conf));
+                    conf.on('conference.userLeft', () => updateRoomActivity(conf));
+                } catch {}
+
+                if (joined) updateRoomActivity(conf);
+            };
+
+            check = setInterval(() => {
+                elapsed += 1000;
+                document.querySelector('[data-testid="prejoin.joinMeeting"]')?.click();
+
+                const store = window.APP?.store;
+                if (store) {
+                    const state = store.getState();
+                    const confState = state['features/base/conference'];
+                    const conf = confState?.conference;
+                    attachConference(conf);
+
+                    if (confState?.error) {
+                        clearInterval(check);
+                        return window.onConferenceFailed(String(confState.error?.name || confState.error));
+                    }
+
+                    if (conf?.isJoined?.()) {
+                        joined = true;
+                        clearInterval(check);
+                        if (avatarUrl) window.APP?.conference?.changeLocalAvatarUrl?.(avatarUrl);
+                        window.onConferenceJoined();
+                        updateRoomActivity(conf);
+
+                        let lastMsgs = state['features/chat']?.messages;
+                        let lastCount = lastMsgs?.length || 0;
+                        let lastAudioMuted = Boolean(state['features/base/media']?.audio?.muted);
+
+                        store.subscribe(() => {
+                            const s = store.getState();
+                            attachConference(s['features/base/conference']?.conference);
+
+                            const isMuted = Boolean(s['features/base/media']?.audio?.muted);
+                            if (isMuted && !lastAudioMuted) window.onLocalAudioMuted();
+                            lastAudioMuted = isMuted;
+
+                            const msgs = s['features/chat']?.messages;
+                            if (msgs && msgs !== lastMsgs) {
+                                lastMsgs = msgs;
+                                if (msgs.length > lastCount) {
+                                    const myId = s['features/base/participants']?.local?.id;
+                                    for (let i = lastCount; i < msgs.length; i++) {
+                                        const msg = msgs[i];
+                                        const isMe = msg.isLocal || (myId && msg.senderId === myId);
+                                        if (!isMe && (msg.timestamp || Date.now()) >= joinTime && msg.message?.startsWith('/')) {
+                                            window.onCommandReceived(msg.message);
+                                        }
+                                    }
+                                }
+                                lastCount = msgs.length;
+                            }
+                        });
+                        return;
+                    }
                 }
-            }
 
-            if (!joined && elapsed >= connectTimeoutMs) {
-                clearInterval(check);
-                window.onConferenceFailed(`Conference join timeout (${connectTimeoutMs / 1000}s)`);
-            }
-        }, 1000);
-    }, {
-        joinTime: Date.now(),
-        avatarUrl: config.avatarUrl,
-        connectTimeoutMs: config.connectTimeoutSec * 1000
-    });
+                if (elapsed >= connectTimeoutMs) {
+                    clearInterval(check);
+                    const state = store?.getState();
+                    const sec = Math.ceil(connectTimeoutMs / 1000);
+                    window.onConferenceFailed(state?.['features/lobby']?.knocking
+                        ? `Lobby is enabled: admission timeout (${sec}s)`
+                        : `Conference join timeout (${sec}s)`);
+                }
+            }, 1000);
 
-    try {
+            return true;
+        }, {
+            joinTime: Date.now(),
+            avatarUrl: config.avatarUrl,
+            connectTimeoutMs: Math.max(1000, deadline - Date.now())
+        });
+
+        if (!isJitsi) {
+            throw new Error('Not a valid Jitsi Meet instance');
+        }
+
         await joinPromise;
+        return { browser, page };
     } catch (err) {
         isClosing = true;
         await browser.close().catch(() => {});
@@ -264,8 +265,6 @@ async function launchJitsiBrowser({
 
         throw new Error(cleanMsg);
     }
-
-    return { browser, page };
 }
 
 module.exports = { launchJitsiBrowser };

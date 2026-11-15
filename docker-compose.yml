@@ -1,22 +1,40 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
 services:
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:deno
+    container_name: jitsi-pot-provider
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging: *default-logging
+
   jitsi-bot:
     build: .
     container_name: jitsi-music-bot
     restart: unless-stopped
     init: true
-    shm_size: '512m'
-    stop_grace_period: 10s
+    stop_grace_period: 15s
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
+    environment:
+      POT_PROVIDER_URL: http://bgutil-provider:4416
+    depends_on:
+      - bgutil-provider
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 1.5G
-        reservations:
-          cpus: '0.5'
-          memory: 500M
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: '3'
+    logging: *default-logging

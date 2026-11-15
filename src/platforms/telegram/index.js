@@ -12,16 +12,21 @@ let activeChatId = null;
 
 function parseTarget(input) {
     const raw = input.trim();
-    if (!raw.includes('/')) return { room: raw.split(/[?#]/)[0], domain: config.jitsiDomain };
+    const [head] = raw.split(/[?#]/, 1);
+    if (!raw || (head.includes('://') && !/^https?:\/\//i.test(raw))) return null;
+
+    const urlStr = !head.includes('/')
+        ? `https://${config.jitsiDomain}/${raw}`
+        : (/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
 
     try {
-        const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-        return {
-            room: decodeURIComponent(u.pathname.replace(/^\/+/, '')).split('/')[0],
-            domain: u.host || config.jitsiDomain
-        };
+        const u = new URL(urlStr);
+        const rawRoom = u.pathname.replace(/^\/+/, '').split('/')[0];
+        let room = rawRoom;
+        try { room = decodeURIComponent(rawRoom); } catch {}
+        return room ? { room, domain: u.host, search: u.search } : null;
     } catch {
-        return { room: raw.split(/[?#]/)[0].replace(/^\/+/, ''), domain: config.jitsiDomain };
+        return null;
     }
 }
 
@@ -45,21 +50,35 @@ async function syncBotProfile(bot) {
 }
 
 function createTelegramBot() {
-    const client = config.proxy ? { baseFetchConfig: { agent: new SocksProxyAgent(config.proxy) } } : undefined;
-    const bot = new Bot(config.telegramToken, { client });
+    let client;
+    if (config.proxy) {
+        if (/^socks/i.test(config.proxy)) {
+            client = {
+                baseFetchConfig: {
+                    agent: new SocksProxyAgent(config.proxy, { timeout: 60_000 }),
+                    compress: true
+                }
+            };
+        } else {
+            log.warn('TG', 'Only socks*:// proxy is supported for Telegram; connecting directly');
+        }
+    }
 
+    const bot = new Bot(config.telegramToken, { client });
     syncBotProfile(bot);
 
     bot.catch(err => log.error('TG', 'Bot error:', err.error || err.message));
 
     bot.use(async (ctx, next) => {
-        if (!ctx.from) return;
+        if (!ctx.from || !ctx.message?.text?.startsWith('/')) return;
+
+        const mention = ctx.message.text.split(/\s+/, 1)[0].split('@')[1];
+        if (mention && mention.toLowerCase() !== ctx.me.username.toLowerCase()) return;
+
         const userId = String(ctx.from.id);
         const tag = `@${ctx.from.username || 'no_user'} [${userId}]`;
-
-        if (ctx.message?.text?.startsWith('/')) {
-            log.info('TG', `${tag} -> ${ctx.message.text}`);
-        }
+        const safeText = ctx.message.text.replace(/([?&]jwt=)[^&\s#]+/gi, '$1***');
+        log.info('TG', `${tag} -> ${safeText}`);
 
         if (config.adminIds.length && !config.adminIds.includes(userId)) {
             log.warn('TG', `Access denied: ${tag}`);
@@ -71,19 +90,18 @@ function createTelegramBot() {
     bot.command('start', ctx => ctx.reply(t('tg_start'), NO_PREVIEW));
 
     bot.command('join', async ctx => {
-        const raw = ctx.match.trim();
-        if (!raw) return ctx.reply(t('tg_empty_room'));
+        const target = parseTarget(ctx.match);
+        if (!target) return ctx.reply(t('tg_empty_room'));
+        if (getBotStatus().isConnected) return ctx.reply(t('tg_busy'));
 
-        const { room, domain } = parseTarget(raw);
-        if (!room) return ctx.reply(t('tg_empty_room'));
-
+        const { room, domain, search } = target;
         await ctx.reply(t('tg_joining', { room }));
 
         try {
-            const ok = await startJitsiBot(room, domain);
-            if (ok) activeChatId = ctx.chat.id;
+            const ok = await startJitsiBot(room, domain, search);
+            if (ok && getBotStatus().isConnected) activeChatId = ctx.chat.id;
 
-            const msg = ok ? t('tg_joined', { url: `https://${domain}/${room}` }) : t('tg_busy');
+            const msg = ok ? t('tg_joined', { url: `https://${domain}/${encodeURIComponent(room)}` }) : t('tg_busy');
             return ctx.reply(msg, NO_PREVIEW);
         } catch (e) {
             log.error('TG', `Failed to join ${room} (${domain}):`, e.message);
@@ -95,9 +113,13 @@ function createTelegramBot() {
         const s = getBotStatus();
         if (!s.isConnected) return ctx.reply(t('tg_status_free'));
 
+        const track = s.currentTrack
+            ? (s.isPaused ? `${s.currentTrack} (${t('j_pause').replace(/\.$/, '')})` : s.currentTrack)
+            : t('j_np_silence');
+
         return ctx.reply(t('tg_status_busy', {
-            url: s.url || `https://${config.jitsiDomain}/${s.roomName}`,
-            track: s.currentTrack || t('j_np_silence'),
+            url: s.url,
+            track,
             queue: s.queueLength,
             volume: s.volume,
             loop: t(LOOP_MAP[s.loopMode] || 'word_loop_off'),
@@ -105,7 +127,7 @@ function createTelegramBot() {
         }), NO_PREVIEW);
     });
 
-   bot.command('leave', async ctx => {
+    bot.command('leave', async ctx => {
         if (!getBotStatus().isConnected) return ctx.reply(t('tg_status_free'));
 
         const user = ctx.from.username ? `@${ctx.from.username}` : `ID:${ctx.from.id}`;
@@ -117,7 +139,7 @@ function createTelegramBot() {
 
         const msg = t('tg_left', { reason });
         if (initiatorChatId && initiatorChatId !== ctx.chat.id) {
-            await bot.api.sendMessage(initiatorChatId, msg, NO_PREVIEW).catch(() => {});
+            await bot.api.sendMessage(initiatorChatId, msg).catch(() => {});
         }
 
         return ctx.reply(msg);
@@ -127,7 +149,7 @@ function createTelegramBot() {
         if (!activeChatId) return;
         const chatId = activeChatId;
         activeChatId = null;
-        await bot.api.sendMessage(chatId, t('tg_left', { reason }), NO_PREVIEW).catch(() => {});
+        await bot.api.sendMessage(chatId, t('tg_left', { reason })).catch(() => {});
     });
 
     return bot;

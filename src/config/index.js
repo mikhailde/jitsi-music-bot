@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { env } = process;
 
 const fail = (msg) => {
@@ -19,12 +19,16 @@ const requiredKeys = [
 const missing = requiredKeys.filter(k => env[k] === undefined);
 if (missing.length) fail(`Missing required environment variables in .env:\n${missing.map(k => `  - ${k}`).join('\n')}`);
 
-const getStr = (k) => env[k].trim();
+const getStr = (k, nonEmpty = false) => {
+    const val = env[k].trim();
+    if (nonEmpty && !val) fail(`Parameter ${k} cannot be empty!`);
+    return val;
+};
 
 const getNum = (k, min) => {
     const val = getStr(k);
     const n = Number(val);
-    if (val === '' || isNaN(n)) fail(`Parameter ${k} must be a number! Received: "${env[k]}"`);
+    if (!val || !Number.isFinite(n)) fail(`Parameter ${k} must be a number! Received: "${env[k]}"`);
     return min !== undefined ? Math.max(min, n) : n;
 };
 
@@ -34,55 +38,72 @@ const getBool = (k) => {
     return val === 'true';
 };
 
-const telegramToken = getStr('TELEGRAM_TOKEN');
-if (!telegramToken) fail('Parameter TELEGRAM_TOKEN cannot be empty!');
+const port = getNum('PORT');
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    fail(`Parameter PORT must be an integer between 1 and 65535! Received: "${env.PORT}"`);
+}
+
+const jitsiDomain = getStr('JITSI_DOMAIN').replace(/^https?:\/\//i, '').split('/')[0];
+if (!jitsiDomain) fail('Parameter JITSI_DOMAIN cannot be empty!');
+
+let jitsiHash;
 
 const config = {
-    port: getNum('PORT'),
-    telegramToken,
+    port,
+    telegramToken: getStr('TELEGRAM_TOKEN', true),
     proxy: getStr('PROXY_URL') || null,
+    potProviderUrl: env.POT_PROVIDER_URL?.trim() || null,
     debugMode: getBool('DEBUG_MODE'),
-    lang: getStr('LANGUAGE').toLowerCase(),
+    lang: getStr('LANGUAGE', true).toLowerCase(),
 
     defaultVolume: Math.min(100, getNum('DEFAULT_VOLUME', 0)) / 100,
-    audioBitrate: getStr('AUDIO_BITRATE'),
-    opusBitrate: getNum('OPUS_BITRATE'),
+    audioBitrate: getStr('AUDIO_BITRATE', true),
+    opusBitrate: getNum('OPUS_BITRATE', 1),
     historyLimit: getNum('HISTORY_LIMIT', 1),
     historyPageSize: getNum('HISTORY_PAGE_SIZE', 1),
     queuePageSize: getNum('QUEUE_PAGE_SIZE', 1),
     radioItemsLimit: getNum('RADIO_ITEMS_LIMIT', 1),
     maxPlaylistItems: getNum('MAX_PLAYLIST_ITEMS', 1),
 
-    jitsiDomain: getStr('JITSI_DOMAIN'),
-    botName: getStr('BOT_NAME'),
+    jitsiDomain,
+    botName: getStr('BOT_NAME', true),
     avatarUrl: getStr('BOT_AVATAR') || null,
 
-    idleTimeoutSec: getNum('IDLE_TIMEOUT_SEC'),
+    idleTimeoutSec: getNum('IDLE_TIMEOUT_SEC', 1),
     connectTimeoutSec: getNum('CONNECT_TIMEOUT_SEC', 5),
-    reconnectTimeoutSec: getNum('RECONNECT_TIMEOUT_SEC'),
-    shutdownTimeoutSec: getNum('SHUTDOWN_TIMEOUT_SEC'),
+    reconnectTimeoutSec: getNum('RECONNECT_TIMEOUT_SEC', 1),
+    shutdownTimeoutSec: getNum('SHUTDOWN_TIMEOUT_SEC', 1),
 
     headless: getBool('HEADLESS_MODE'),
     adminIds: getStr('TELEGRAM_ADMIN_IDS').split(',').map(s => s.trim()).filter(Boolean),
 
-    getMeetUrl(room, domain = config.jitsiDomain) {
-        return `https://${domain}/${room}#${config._jitsiHash}`;
+    getMeetUrl(room, domain = config.jitsiDomain, search = '') {
+        const qs = !search || search.startsWith('?') ? search : `?${search}`;
+        return `https://${domain}/${encodeURIComponent(room)}${qs}#${jitsiHash}`;
     }
 };
 
-config._jitsiHash = [
+jitsiHash = [
     'config.prejoinConfig.enabled=false',
-    'config.startAudioOnly=true',
     'config.startWithVideoMuted=true',
     'config.startWithAudioMuted=false',
-    `userInfo.displayName="${encodeURIComponent(config.botName)}"`,
+    'config.startLastN=0',
+    'config.channelLastN=0',
+    `userInfo.displayName=${encodeURIComponent(JSON.stringify(config.botName))}`,
     'config.audioQuality.stereo=true',
     `config.audioQuality.opusMaxAverageBitrate=${config.opusBitrate}`,
-    'config.enableNoAudioDetection=false',
+    'config.audioQuality.enableOpusDtx=false',
+    'config.enableOpusRed=false',
+    'config.disableAP=true',
     'config.enableNoisyMicDetection=false',
     'config.disableAudioLevels=true',
+    'config.disableIncomingMessageSound=true',
+    'config.disableJoinLeaveSounds=true',
+    'config.disableBeforeUnloadHandlers=true',
+    'config.analytics.disabled=true',
     'config.gravatar.disabled=true',
-    'config.p2p.enabled=false'
+    'config.p2p.enabled=false',
+    ...(config.avatarUrl ? [] : ['config.disableThirdPartyRequests=true'])
 ].join('&');
 
 module.exports = config;

@@ -3,7 +3,7 @@ const { getTrackInfo } = require('../../audio');
 const t = require('../../config/i18n');
 const log = require('../../utils/logger');
 
-const YT_ID_REGEX = /(?:v=|\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+const YT_ID_REGEX = /(?:v=|\/shorts\/|\/live\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 
 async function fetchNextRadioTrack({ state, playNextInQueue, sendChat, track }) {
     if (!state.isRadioMode || state.isFetchingRadio) return;

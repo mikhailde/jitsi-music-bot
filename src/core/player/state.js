@@ -11,6 +11,7 @@ class PlayerState {
             history: [],
             currentTrack: null,
             isPlaying: false,
+            isPaused: false,
             currentVolume: config.defaultVolume,
             loopMode: 'off',
             isRadioMode: false,
@@ -67,7 +68,7 @@ class PlayerState {
     getForbiddenUrls() {
         const urls = new Set();
         if (this.currentTrack?.url) urls.add(this.currentTrack.url);
-        if (this.radioSeedTrack?.url) urls.add(this.radioSeedTrack.url); // <--- якорный трек
+        if (this.radioSeedTrack?.url) urls.add(this.radioSeedTrack.url);
         for (const t of this.history) if (t?.url) urls.add(t.url);
         for (const t of this.queue) if (t?.url) urls.add(t.url);
         return urls;
@@ -83,7 +84,8 @@ class PlayerState {
             isConnected: true,
             roomName: roomName || null,
             isPlaying: this.isPlaying,
-            currentTrack: this.currentTrack?.title || null,
+            isPaused: this.isPaused,
+            currentTrack: this.isPlaying ? (this.currentTrack?.title || null) : null,
             queueLength: this.queue.length,
             isRadioMode: this.isRadioMode,
             volume: Math.round(this.currentVolume * 100),

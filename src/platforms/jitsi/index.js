@@ -10,11 +10,11 @@ function setDisconnectHandler(fn) {
     disconnectHandler = fn;
 }
 
-async function startJitsiBot(roomName, domain = config.jitsiDomain) {
+async function startJitsiBot(roomName, domain = config.jitsiDomain, search = '') {
     if (activeSession || isConnecting) return false;
     isConnecting = true;
 
-    const session = new JitsiSession(roomName, domain, (s, reason) => {
+    const session = new JitsiSession(roomName, domain, search, (s, reason) => {
         if (activeSession === session) activeSession = null;
         disconnectHandler?.({ roomName: s.roomName, domain: s.domain, reason });
     });

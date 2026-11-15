@@ -4,6 +4,10 @@ const log = require('../../utils/logger');
 const { formatTime, getProgressBar } = require('../../utils/format');
 
 const loopMap = { track: 'word_loop_1', queue: 'word_loop_q' };
+const toIndex = (s) => (/^\d+$/.test(s) ? Number(s) - 1 : NaN);
+const triggerRadio = (state, fetchRadio) => {
+    if (state.shouldTriggerRadio()) fetchRadio(state.radioSeedTrack || state.currentTrack);
+};
 
 const commands = {
     async '/play'({ cmd, query, state, player, getTrackInfo }) {
@@ -20,7 +24,7 @@ const commands = {
             await player.sendChatMessage(t('j_playlist_loaded', { count: tracks.length }));
         }
 
-        if (!state.isPlaying && !state.isHandlingEnd) {
+        if (!state.isPlaying) {
             await player.playNextInQueue();
         } else if (tracks.length === 1) {
             const tr = tracks[0];
@@ -33,11 +37,10 @@ const commands = {
     },
 
     async '/skip'({ state, player }) {
-        if (state.isPlaying) {
-            await player.sendChatMessage(t('j_skip'));
-            await player.stopTrack();
-            await player.handleTrackEnd(true);
-        }
+        if (!state.isPlaying) return;
+        await player.sendChatMessage(t('j_skip'));
+        await player.stopTrack();
+        await player.handleTrackEnd(true);
     },
 
     async '/replay'({ state, player }) {
@@ -54,11 +57,10 @@ const commands = {
 
     async '/radio'({ state, player, fetchRadio }) {
         state.isRadioMode = !state.isRadioMode;
-        const seed = state.isRadioMode ? (state.currentTrack || state.history[0] || null) : null;
-        state.radioSeedTrack = seed;
+        state.radioSeedTrack = state.isRadioMode ? (state.currentTrack || state.history[0] || null) : null;
 
         await player.sendChatMessage(t(state.isRadioMode ? 'j_radio_on' : 'j_radio_off'));
-        if (state.shouldTriggerRadio()) fetchRadio(seed);
+        triggerRadio(state, fetchRadio);
     },
 
     async '/loop'({ args, state, player, fetchRadio }) {
@@ -66,47 +68,40 @@ const commands = {
         if (['track', 'queue', 'off'].includes(mode)) {
             state.loopMode = mode;
             await player.sendChatMessage(t(`j_loop_${mode}`));
-            if (state.shouldTriggerRadio()) fetchRadio(state.radioSeedTrack || state.currentTrack);
+            triggerRadio(state, fetchRadio);
         } else {
             const s = t(loopMap[state.loopMode] || 'word_loop_off');
             await player.sendChatMessage(t('j_loop_info', { status: s }));
         }
     },
 
-    async '/shuffle'({ state, player }) {
-        const ok = state.shuffleQueue();
-        return player.sendChatMessage(t(ok ? 'j_shuffle_ok' : 'j_shuffle_err'));
+    '/shuffle'({ state, player }) {
+        return player.sendChatMessage(t(state.shuffleQueue() ? 'j_shuffle_ok' : 'j_shuffle_err'));
     },
 
-    async '/move'({ args, state, player }) {
+    '/move'({ args, state, player }) {
         if (args.length !== 3) return player.sendChatMessage(t('j_move_err_fmt'));
-        const from = parseInt(args[1], 10) - 1;
-        const to = parseInt(args[2], 10) - 1;
+        const from = toIndex(args[1]);
+        const to = toIndex(args[2]);
         if (isNaN(from) || isNaN(to)) return player.sendChatMessage(t('j_move_err_fmt'));
 
-        if (state.moveTrack(from, to)) {
-            return player.sendChatMessage(t('j_move_ok', { pos: to + 1 }));
-        }
-        return player.sendChatMessage(t('j_move_err_idx', { count: state.queue.length }));
+        return player.sendChatMessage(state.moveTrack(from, to)
+            ? t('j_move_ok', { pos: to + 1 })
+            : t('j_move_err_idx', { count: state.queue.length }));
     },
 
     async '/clear'({ state, player, fetchRadio }) {
         state.clearQueue();
         await player.sendChatMessage(t('j_clear'));
-        if (state.shouldTriggerRadio()) fetchRadio(state.radioSeedTrack || state.currentTrack);
+        triggerRadio(state, fetchRadio);
     },
 
     async '/remove'({ args, state, player, fetchRadio }) {
-        const idx = parseInt(args[1], 10) - 1;
-        if (isNaN(idx)) return player.sendChatMessage(t('j_remove_err'));
+        const removed = state.removeTrack(toIndex(args[1]));
+        if (!removed) return player.sendChatMessage(t('j_remove_err'));
 
-        const removed = state.removeTrack(idx);
-        if (removed) {
-            await player.sendChatMessage(t('j_remove', { title: removed.title }));
-            if (state.shouldTriggerRadio()) fetchRadio(state.radioSeedTrack || state.currentTrack);
-        } else {
-            await player.sendChatMessage(t('j_remove_err'));
-        }
+        await player.sendChatMessage(t('j_remove', { title: removed.title }));
+        triggerRadio(state, fetchRadio);
     },
 
     async '/stop'({ state, player }) {
@@ -115,20 +110,22 @@ const commands = {
         return player.sendChatMessage(t('j_stop'));
     },
 
-    async '/pause'({ player }) {
-        return player.pauseTrack();
+    async '/pause'({ state, player }) {
+        if (!state.isPlaying || state.isPaused) return;
+        if (await player.pauseTrack()) state.isPaused = true;
     },
 
-    async '/resume'({ player }) {
-        return player.resumeTrack();
+    async '/resume'({ state, player }) {
+        if (!state.isPlaying || !state.isPaused) return;
+        if (await player.resumeTrack()) state.isPaused = false;
     },
 
-    async '/volume'({ args, state, player }) {
+    '/volume'({ args, state, player }) {
         const val = parseInt(args[1], 10);
         if (isNaN(val)) {
             return player.sendChatMessage(t('j_volume_current', { vol: Math.round(state.currentVolume * 100) }));
         }
-        await player.setVolume(Math.max(0, Math.min(100, val)));
+        return player.setVolume(Math.max(0, Math.min(100, val)));
     },
 
     async '/np'({ state, player }) {
@@ -141,27 +138,26 @@ const commands = {
             total: formatTime(tr.duration),
             url: tr.url
         });
-        if (state.loopMode !== 'off') {
-            msg += `\n(${t(loopMap[state.loopMode])})`;
-        }
+        if (state.isPaused) msg += `\n(${t('j_pause').replace(/\.$/, '')})`;
+        if (state.loopMode !== 'off') msg += `\n(${t(loopMap[state.loopMode])})`;
         return player.sendChatMessage(msg);
     },
 
-    async '/queue'({ state, player }) {
+    '/queue'({ state, player }) {
         if (!state.queue.length) return player.sendChatMessage(t('j_queue_empty'));
         const list = state.queue.slice(0, config.queuePageSize).map((tr, i) => `${i + 1}. ${tr.title} [${formatTime(tr.duration)}]\n${tr.url}`).join('\n\n');
         const more = state.queue.length > config.queuePageSize ? t('j_queue_more', { count: state.queue.length - config.queuePageSize }) : '';
         return player.sendChatMessage(`${t('j_queue_head', { count: state.queue.length })}${list}${more}`);
     },
 
-    async '/history'({ state, player }) {
+    '/history'({ state, player }) {
         if (!state.history.length) return player.sendChatMessage(t('j_hist_empty'));
         const list = state.history.slice(0, config.historyPageSize).map((tr, i) => `${i + 1}. ${tr.title} [${formatTime(tr.duration)}]`).join('\n');
         const more = state.history.length > config.historyPageSize ? t('j_hist_more', { count: state.history.length - config.historyPageSize }) : '';
         return player.sendChatMessage(`${t('j_hist_head')}${list}${more}`);
     },
 
-    async '/help'({ player }) {
+    '/help'({ player }) {
         return player.sendChatMessage(t('j_help'));
     },
 
