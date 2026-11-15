@@ -67,7 +67,10 @@ async function getTrackInfo(query, playlistItems = null) {
         '--js-runtimes', 'deno',
         ...(itemsLimit ? ['--playlist-items', itemsLimit] : []),
         ...(config.proxy ? ['--proxy', config.proxy] : []),
-        ...(config.potProviderUrl ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${config.potProviderUrl}`] : []),
+        ...(config.potProviderUrl ? [
+            '--extractor-args', `youtubepot-bgutilhttp:base_url=${config.potProviderUrl}`,
+            '--extractor-args', 'youtube:player-client=mweb,tv,web_safari'
+        ] : []),
         '--',
         target
     ];

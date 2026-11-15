@@ -24,7 +24,10 @@ function pipeAudioStream(url, res) {
         '--fragment-retries', '3',
         '--js-runtimes', 'deno',
         ...(config.proxy ? ['--proxy', config.proxy] : []),
-        ...(config.potProviderUrl ? ['--extractor-args', `youtubepot-bgutilhttp:base_url=${config.potProviderUrl}`] : []),
+        ...(config.potProviderUrl ? [
+            '--extractor-args', `youtubepot-bgutilhttp:base_url=${config.potProviderUrl}`,
+            '--extractor-args', 'youtube:player-client=mweb,tv,web_safari'
+        ] : []),
         '--',
         url
     ], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -51,9 +54,12 @@ function pipeAudioStream(url, res) {
 
     const fail = (prefix, msg) => {
         if (closed) return;
-        log.error(prefix, msg);
-        if (!res.headersSent) res.writeHead(502).end();
-        else res.destroy();
+        if (msg) log.error(prefix, msg);
+        if (!res.headersSent && !res.destroyed) {
+            res.writeHead(502, { 'Access-Control-Allow-Origin': '*' }).end();
+        } else if (!res.destroyed) {
+            res.destroy();
+        }
         cleanup();
     };
 

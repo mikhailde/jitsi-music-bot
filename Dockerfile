@@ -3,7 +3,7 @@ WORKDIR /app
 ENV NODE_ENV=production DENO_INSTALL=/usr/local
 
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg unzip \
-    && curl -fsSL https://deno.land/install.sh | sh -s -- -y --no-modify-path \
+    && curl -fsSL https://deno.land/install.sh | sh \
     && mkdir -p /etc/yt-dlp/plugins \
     && curl -fsSL -o /etc/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip \
         https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/latest/download/bgutil-ytdlp-pot-provider.zip \
