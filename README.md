@@ -20,9 +20,9 @@ Jitsi Meet music bot with stereo audio and smart YouTube autoplay, controlled vi
 
 - **HD WebAudio Pipeline**: Direct 48 kHz WebAudio injection with stereo and Opus bitrates up to 510 kbps. Disables browser/Jitsi audio processing (`disableAP`), Opus DTX, and Opus RED.
 - **Telegram Remote Control**: Manage room connections, live playback status, and access control via Telegram bot powered by [GrammY](https://grammy.dev/).
-- **Multi-Instance & JWT Rooms**: Seamlessly join public (`meet.jit.si`) or custom corporate/JWT-authenticated (`?jwt=...`) Jitsi instances via smart URL parsing.
+- **Multi-Instance & JWT Rooms**: Seamlessly join public (`meet.jit.si`) or custom corporate/JWT-authenticated (`?jwt=...`) Jitsi instances.
 - **YouTube PO Token & Auto-Update**: Built-in `bgutil-ytdlp-pot-provider` Deno sidecar and automatic nightly `yt-dlp` updates to prevent server IP `403` and bot-check failures.
-- **Infinite Radio Mode**: Autoplays relevant recommendations from YouTube Music radio (`RDAMVM` with `RD` fallback) and in-memory mix caching when the queue is exhausted.
+- **Infinite Radio Mode**: Autoplays relevant recommendations from YouTube Music radio (`RDAMVM` with `RD` fallback) with in-memory mix caching when the queue is exhausted.
 - **Real-Time Telegram Alerts**: Asynchronous push notifications in Telegram explaining why the bot left (moderator kick, idle timeout, lobby timeout, network drop, or crash).
 - **Smart Moderation & Resilience**: Auto-pauses on moderator mute or when the room becomes empty (resuming automatically when participants rejoin), handles temporary network drops, and runs unprivileged (`pwuser`) with Docker `init: true`.
 - **Zero-Dependency HTTP Streamer**: Native `node:http` and process-group stream pipeline without heavy web frameworks.
@@ -138,7 +138,7 @@ npm start
 | | `/remove <index>` | Remove a specific track from queue by its index |
 | | `/clear` | Wipe all tracks from the queue |
 | **Settings** | `/volume <0-100>` | Adjust playback volume (persists across tracks) |
-| | `/radio` | Toggle infinite autoplay mode from YouTube Mix |
+| | `/radio` | Toggle infinite autoplay mode from YouTube Music / Mix |
 | | `/loop <track\|queue\|off>` | Set repeat mode (current track, whole queue, or disabled) |
 | **Control** | `/help` | Print complete command manual in meeting chat |
 | | `/leave` · `/exit` | Disconnect bot from conference |
