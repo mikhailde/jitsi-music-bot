@@ -13,7 +13,7 @@ async function getMix(id) {
     if (!tracks || tracks.length <= 1) {
         tracks = await getTrackInfo(`https://www.youtube.com/watch?v=${id}&list=RD${id}`, `1-${config.radioItemsLimit}`);
     }
-    if (tracks) {
+    if (tracks?.length) {
         if (mixCache.size >= 20) mixCache.delete(mixCache.keys().next().value);
         mixCache.set(id, tracks);
     }

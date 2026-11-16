@@ -9,6 +9,7 @@ const NO_PREVIEW = { link_preview_options: { is_disabled: true } };
 const LOOP_MAP = { track: 'word_loop_1', queue: 'word_loop_q' };
 
 let activeChatId = null;
+let isJoinPending = false;
 
 function parseTarget(input) {
     const raw = input.trim();
@@ -92,12 +93,13 @@ function createTelegramBot() {
     bot.command('join', async ctx => {
         const target = parseTarget(ctx.match);
         if (!target) return ctx.reply(t('tg_empty_room'));
-        if (getBotStatus().isConnected) return ctx.reply(t('tg_busy'));
+        if (isJoinPending || getBotStatus().isBusy) return ctx.reply(t('tg_busy'));
 
         const { room, domain, search } = target;
-        await ctx.reply(t('tg_joining', { room }));
+        isJoinPending = true;
 
         try {
+            await ctx.reply(t('tg_joining', { room }));
             const ok = await startJitsiBot(room, domain, search);
             if (ok && getBotStatus().isConnected) activeChatId = ctx.chat.id;
 
@@ -106,6 +108,8 @@ function createTelegramBot() {
         } catch (e) {
             log.error('TG', `Failed to join ${room} (${domain}):`, e.message);
             return ctx.reply(t('tg_error', { error: e.message }));
+        } finally {
+            isJoinPending = false;
         }
     });
 

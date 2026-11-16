@@ -43,6 +43,7 @@ async function launchJitsiBrowser({
 
     let isJoined = false;
     let isClosing = false;
+    let joinTimeout = null;
     let joinResolve, joinReject;
     const joinPromise = new Promise((resolve, reject) => {
         joinResolve = resolve;
@@ -102,7 +103,10 @@ async function launchJitsiBrowser({
             onTrackEnded,
             onTrackError,
             onCommandReceived,
-            onKicked,
+            onKicked: () => {
+                if (!isJoined) joinReject(new Error('Kicked before joining'));
+                else onKicked?.();
+            },
             onConferenceJoined: () => {
                 isJoined = true;
                 joinResolve();
@@ -132,6 +136,13 @@ async function launchJitsiBrowser({
         if (response && !response.ok()) {
             throw new Error(`Server returned HTTP ${response.status()} (${response.statusText()})`);
         }
+
+        const remainingMs = Math.max(1000, deadline - Date.now());
+        joinTimeout = setTimeout(() => {
+            if (!isJoined && !isClosing) {
+                joinReject(new Error(`Conference join timeout (${Math.ceil(remainingMs / 1000)}s)`));
+            }
+        }, remainingMs + 2000);
 
         const isJitsi = await page.evaluate(({ joinTime, avatarUrl, connectTimeoutMs }) => {
             if (!window.config?.hosts) return false;
@@ -245,7 +256,7 @@ async function launchJitsiBrowser({
         }, {
             joinTime: Date.now(),
             avatarUrl: config.avatarUrl,
-            connectTimeoutMs: Math.max(1000, deadline - Date.now())
+            connectTimeoutMs: remainingMs
         });
 
         if (!isJitsi) {
@@ -253,8 +264,10 @@ async function launchJitsiBrowser({
         }
 
         await joinPromise;
+        clearTimeout(joinTimeout);
         return { browser, page };
     } catch (err) {
+        clearTimeout(joinTimeout);
         isClosing = true;
         await browser.close().catch(() => {});
 

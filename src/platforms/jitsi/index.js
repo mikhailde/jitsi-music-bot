@@ -26,7 +26,7 @@ async function startJitsiBot(roomName, domain = config.jitsiDomain, search = '')
         return true;
     } catch (err) {
         await session.destroy(t('reason_init_failed')).catch(() => {});
-        activeSession = null;
+        if (activeSession === session) activeSession = null;
         throw err;
     } finally {
         isConnecting = false;
@@ -34,15 +34,19 @@ async function startJitsiBot(roomName, domain = config.jitsiDomain, search = '')
 }
 
 async function leaveJitsiBot(reason = t('reason_normal')) {
-    if (!activeSession) return false;
     const session = activeSession;
-    activeSession = null;
+    if (!session) return false;
     await session.destroy(reason);
+    if (activeSession === session) activeSession = null;
     return true;
 }
 
 function getBotStatus() {
-    return activeSession?.getStatus() ?? { isConnected: false };
+    const status = activeSession?.getStatus() ?? { isConnected: false };
+    return {
+        ...status,
+        isBusy: Boolean(activeSession || isConnecting)
+    };
 }
 
 module.exports = {

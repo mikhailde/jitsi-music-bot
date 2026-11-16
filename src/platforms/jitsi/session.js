@@ -28,6 +28,7 @@ class JitsiSession {
         this.pausedByEmptyRoom = false;
         this.actionQueue = Promise.resolve();
         this.connectionTimer = null;
+        this.destroyPromise = null;
 
         this.playerContext = {
             sendChatMessage: m => this.bridge.sendChatMessage(m),
@@ -98,7 +99,7 @@ class JitsiSession {
                     log.info('JITSI', 'Connection restored');
                 }
             },
-            onCrash: reason => this.destroy(t('reason_crash', { err: reason })),
+            onCrash: reason => !this.isDestroyed && this.destroy(t('reason_crash', { err: reason })),
             onLocalAudioMuted: () => this.queueAction(async () => {
                 if (!this.state.isPlaying || this.state.isPaused) return;
                 if (await this.bridge.pauseTrack()) {
@@ -140,7 +141,7 @@ class JitsiSession {
 
         if (this.isDestroyed) {
             await session.browser?.close().catch(() => {});
-            return;
+            throw new Error('Connection cancelled');
         }
 
         this.browser = session.browser;
@@ -226,50 +227,61 @@ class JitsiSession {
     }
 
     async destroy(reason = t('reason_normal')) {
-        if (this.isDestroyed) return;
+        if (this.destroyPromise) return this.destroyPromise;
         this.isDestroyed = true;
-        this.pausedByEmptyRoom = false;
 
-        this.clearConnectionTimer();
-        this.watchdog?.stop();
-        this.watchdog = null;
+        this.destroyPromise = (async () => {
+            this.pausedByEmptyRoom = false;
+            this.clearConnectionTimer();
+            this.watchdog?.stop();
+            this.watchdog = null;
 
-        if (this.browser) {
-            log.debug('JITSI', `Disconnecting from room "${this.roomName}" (${reason})...`);
-            if (this.page && !this.page.isClosed()) {
-                let timer;
-                const left = await Promise.race([
-                    this.page.evaluate(async () => {
-                        try {
-                            const conf = window.APP?.store?.getState()?.['features/base/conference']?.conference;
-                            if (conf?.leave) await Promise.race([conf.leave(), new Promise(r => setTimeout(r, 1000))]);
-                            document.querySelector('[data-testid="toolbar.hangup"], [aria-label*="Leave"], [aria-label*="hangup"]')?.click();
-                            return true;
-                        } catch {
-                            return false;
-                        }
-                    }).catch(() => false),
-                    new Promise(r => { timer = setTimeout(() => r(false), 1500); })
-                ]).finally(() => clearTimeout(timer));
+            try {
+                if (this.browser) {
+                    log.debug('JITSI', `Disconnecting from room "${this.roomName}" (${reason})...`);
+                    if (this.page && !this.page.isClosed() && this.browser.isConnected()) {
+                        let timer;
+                        const left = await Promise.race([
+                            this.page.evaluate(async () => {
+                                try {
+                                    const conf = window.APP?.store?.getState()?.['features/base/conference']?.conference;
+                                    if (!conf) return false;
+                                    await Promise.race([conf.leave(), new Promise(r => setTimeout(r, 1000))]);
+                                    return true;
+                                } catch {
+                                    return false;
+                                }
+                            }).catch(() => false),
+                            new Promise(r => { timer = setTimeout(() => r(false), 1500); })
+                        ]).finally(() => clearTimeout(timer));
 
-                if (left) await delay(400);
-                await this.page.close().catch(() => {});
+                        if (left) await delay(400);
+                    }
+
+                    let closeTimer;
+                    await Promise.race([
+                        this.browser.close().catch(() => {}),
+                        new Promise(r => { closeTimer = setTimeout(r, 5000); })
+                    ]).finally(() => clearTimeout(closeTimer));
+
+                    log.info('JITSI', `Disconnected from room "${this.roomName}" (${reason})`);
+                }
+            } finally {
+                this.browser = null;
+                this.page = null;
+                this.state.reset();
+                this.onSessionEnd?.(this, reason);
             }
-            await this.browser.close().catch(() => {});
-            this.browser = null;
-            this.page = null;
-            log.info('JITSI', `Disconnected from room "${this.roomName}" (${reason})`);
-        }
+        })();
 
-        this.state.reset();
-        this.onSessionEnd?.(this, reason);
+        return this.destroyPromise;
     }
 
     getStatus() {
         const status = this.state.getStatus(this.roomName, Boolean(this.browser && !this.isDestroyed));
         if (status.isConnected) {
             status.domain = this.domain;
-            status.url = `https://${this.domain}/${this.roomName}`;
+            status.url = `https://${this.domain}/${encodeURIComponent(this.roomName)}`;
         }
         return status;
     }

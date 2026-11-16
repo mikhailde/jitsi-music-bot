@@ -75,7 +75,7 @@ class PlayerState {
     }
 
     shouldTriggerRadio() {
-        return this.isRadioMode && !this.queue.length && Boolean(this.currentTrack || this.radioSeedTrack || this.history[0]);
+        return this.isRadioMode && this.loopMode === 'off' && !this.queue.length && Boolean(this.currentTrack || this.radioSeedTrack || this.history[0]);
     }
 
     getStatus(roomName, isConnected) {

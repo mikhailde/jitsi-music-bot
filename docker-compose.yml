@@ -12,7 +12,6 @@ services:
     init: true
     security_opt:
       - no-new-privileges:true
-    env_file: .env
     environment:
       - HTTP_PROXY=${PROXY_URL}
       - HTTPS_PROXY=${PROXY_URL}
