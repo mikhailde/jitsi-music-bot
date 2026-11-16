@@ -69,7 +69,7 @@ async function getTrackInfo(query, playlistItems = null) {
         ...(config.proxy ? ['--proxy', config.proxy] : []),
         ...(config.potProviderUrl ? [
             '--extractor-args', `youtubepot-bgutilhttp:base_url=${config.potProviderUrl}`,
-            '--extractor-args', 'youtube:player-client=mweb,tv,web_safari'
+            '--extractor-args', 'youtube:player-client=default,web_embedded'
         ] : []),
         '--',
         target
