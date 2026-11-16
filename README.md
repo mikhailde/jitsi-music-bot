@@ -156,7 +156,6 @@ All required parameters must be defined in your `.env` file (empty values are pe
 | | `DEBUG_MODE` | Verbose debug and benchmark logging | `false` |
 | | `TZ` | Container timezone for logs (optional) | `UTC` |
 | | `PROXY_URL` | Proxy URL (`socks5://` for Telegram, `yt-dlp` & `bgutil`; `http://` for `yt-dlp` & `bgutil`, optional) | `socks5://user:pass@host:port` |
-| | `POT_PROVIDER_URL` | External PO Token server URL (optional, auto-set in Docker Compose) | `http://127.0.0.1:4416` |
 | **Security** | `TELEGRAM_TOKEN` | Telegram bot token from @BotFather | `123456:ABC-DEF...` |
 | | `TELEGRAM_ADMIN_IDS`| Comma-separated admin IDs (empty = public access) | `678094226,12345678` |
 | **Jitsi** | `JITSI_DOMAIN` | Default Jitsi instance domain | `meet.jit.si` |
